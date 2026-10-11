@@ -1,0 +1,44 @@
+<?php
+
+namespace App\Http\Resources;
+
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+
+class ReparationsResource extends JsonResource
+{
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(Request $request): array
+    {
+        return [
+            'id' => $this->id,
+            'invoice' => $this->invoice,
+            'item_name' => $this->item_name,
+            'flag' => $this->flag ?? [],
+            'accessories' => $this->accessories ?? [],
+            'complaint' => $this->complaint ?? [],
+            'condition' => $this->condition ?? [],
+            'estimated_cost' => $this->estimated_cost,
+            'check_deadline_at' => $this->check_deadline_at?->format('Y-m-d\TH:i'),
+            'process_deadline_at' => $this->process_deadline_at?->format('Y-m-d\TH:i'),
+            'status' => $this->status,
+            'technician_notes' => $this->technician_notes,
+            'additional_notes' => $this->additional_notes,
+            'customer_id' => $this->customer_id,
+            'customer_name' => $this->customer?->name,
+            'customer_phone' => $this->customer?->phone,
+            'created_at' => $this->created_at->toDateString(),
+            'logs' => $this->whenLoaded('logs', fn () => $this->logs->map(fn ($log) => [
+                'event' => $log->event,
+                'from_value' => $log->from_value,
+                'to_value' => $log->to_value,
+                'note' => $log->note,
+                'description' => $log->description,
+                'user_name' => $log->user?->name,
+                'occurred_at' => $log->occurred_at?->format('Y-m-d H:i'),
+            ])),
+        ];
+    }
+}

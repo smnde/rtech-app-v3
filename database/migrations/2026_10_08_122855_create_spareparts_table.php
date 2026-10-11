@@ -1,0 +1,51 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('spareparts', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('category_id')
+                ->constrained()
+                ->onDelete('cascade')
+                ->onUpdate('cascade');
+
+            $table->foreignId('brand_id')
+                ->constrained()
+                ->onDelete('restrict')
+                ->onUpdate('cascade');
+
+            $table->foreignId('supplier_id')
+                ->nullable()
+                ->constrained()
+                ->onDelete('restrict')
+                ->onUpdate('cascade');
+
+            $table->string('name')->index();
+            $table->string('sku')->unique();
+            $table->integer('stock');
+            $table->string('warranty');
+            $table->decimal('buy_price', 15, 2)->nullable();
+            $table->decimal('sell_price', 15, 2)->nullable();
+            $table->enum('status', ['READY STOCK', 'HABIS']);
+            $table->text('notes');
+            $table->timestamps();
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('spareparts');
+    }
+};

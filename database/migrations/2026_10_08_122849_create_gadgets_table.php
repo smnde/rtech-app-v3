@@ -1,0 +1,50 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('gadgets', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('brand_id')
+                ->constrained()
+                ->onDelete('restrict')
+                ->onUpdate('cascade');
+
+            $table->foreignId('supplier_id')
+                ->nullable()
+                ->constrained()
+                ->onDelete('restrict')
+                ->onUpdate('cascade');
+
+            $table->string('name')->index();
+            $table->string('sku')->unique();
+            $table->string('serialnumber')->unique()->nullable();
+            $table->string('warranty');
+            $table->integer('stock');
+            $table->json('specification');
+            $table->json('issue_notes')->nullable();
+            $table->json('accessories')->nullable();
+            $table->decimal('buy_price', 15, 2)->nullable();
+            $table->decimal('sell_price', 15, 2)->nullable();
+            $table->enum('status', ['READY STOCK', 'HABIS']);
+            $table->text('notes')->nullable();
+            $table->timestamps();
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('gadgets');
+    }
+};

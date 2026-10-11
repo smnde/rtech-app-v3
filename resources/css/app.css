@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Scrollbar custom — dipakai di sidebar, body modal, dan area scroll lain
+ * supaya tidak memakai scrollbar default browser.
+ * Ditulis di luar @layer supaya selalu ikut ter-compile
+ * (Tailwind men-tree-shake class custom yang ditulis di dalam @layer).
+ */
+.scrollbar-styled {
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.gray.300') transparent;
+}
+
+.dark .scrollbar-styled {
+    scrollbar-color: theme('colors.gray.700') transparent;
+}
+
+.scrollbar-styled::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.scrollbar-styled::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.scrollbar-styled::-webkit-scrollbar-thumb {
+    background-color: theme('colors.gray.300');
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+}
+
+.scrollbar-styled::-webkit-scrollbar-thumb:hover {
+    background-color: theme('colors.gray.400');
+}
+
+.dark .scrollbar-styled::-webkit-scrollbar-thumb {
+    background-color: theme('colors.gray.700');
+}
+
+.dark .scrollbar-styled::-webkit-scrollbar-thumb:hover {
+    background-color: theme('colors.gray.600');
+}
+
+@media (max-width: 639px) {
+    .scrollbar-mobile-hidden {
+        scrollbar-width: none;
+    }
+
+    .scrollbar-mobile-hidden::-webkit-scrollbar {
+        display: none;
+    }
+}
