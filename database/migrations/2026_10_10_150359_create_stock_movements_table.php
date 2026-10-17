@@ -22,7 +22,7 @@ return new class extends Migration
             $table->integer('quantity');
             $table->integer('stock_before');
             $table->integer('stock_after');
-            $table->enum('status', ['PURHCASE', 'SOLD OUT', 'FREE', 'DEBT', 'REFUND']);
+            $table->enum('status', ['PEMBELIAN', 'TERJUAL', 'BONUS', 'HUTANG', 'REFUND']);
             $table->date('movement_date')->nullable();
             $table->string('reference')->nullable();
             $table->text('notes')->nullable();

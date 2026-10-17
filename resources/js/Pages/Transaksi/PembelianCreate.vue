@@ -118,6 +118,16 @@ const stepQty = (line, delta) => {
     updateItem(line, { qty: Math.max(1, Number(line.qty || 1) + delta) });
 };
 
+const setQty = (line, value) => {
+    const qty = Math.max(1, Number(value) || 1);
+    if (qty !== Number(line.qty)) updateItem(line, { qty });
+};
+
+const setPrice = (line, value) => {
+    const price = Math.max(0, Number(value) || 0);
+    if (price !== Number(line.price)) updateItem(line, { price });
+};
+
 const holdLabel = ref('');
 
 const holdCart = () => {
@@ -553,18 +563,33 @@ watch(() => page.props.flash?.created_item, (created) => {
                                     :class="line.expanded ? 'rotate-180' : ''" />
                             </button>
 
-                            <!-- Qty stepper -->
+                            <!-- Qty: stepper + input langsung -->
                             <div class="flex shrink-0 items-center gap-1">
                                 <button type="button" @click="stepQty(line, -1)"
                                     class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                                     −
                                 </button>
-                                <span class="w-8 text-center text-sm font-semibold text-gray-900 dark:text-white tabular-nums">{{ line.qty }}</span>
+                                <input
+                                    type="text"
+                                    inputmode="numeric"
+                                    :value="line.qty"
+                                    @input="setQty(line, $event.target.value)"
+                                    class="h-8 w-12 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 text-center text-sm font-semibold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 transition"
+                                />
                                 <button type="button" @click="stepQty(line, 1)"
                                     class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                                     +
                                 </button>
                             </div>
+
+                            <!-- Harga per unit — input langsung -->
+                            <input
+                                type="text"
+                                inputmode="numeric"
+                                :value="line.price"
+                                @input="setPrice(line, $event.target.value)"
+                                class="h-8 w-24 shrink-0 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 text-right text-xs tabular-nums text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 transition"
+                            />
 
                             <button type="button" @click="removeItem(line)"
                                 class="shrink-0 rounded-lg p-1.5 text-gray-300 dark:text-gray-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-400/10 transition-colors">
@@ -581,10 +606,6 @@ watch(() => page.props.flash?.created_item, (created) => {
                             <div class="flex items-start justify-between gap-3 text-xs">
                                 <span class="shrink-0 text-gray-400">Spek</span>
                                 <span class="text-right text-gray-600 dark:text-gray-300">{{ line.spec || '—' }}</span>
-                            </div>
-                            <div class="flex items-center justify-between gap-3 text-xs">
-                                <span class="text-gray-400">Harga</span>
-                                <span class="tabular-nums text-gray-600 dark:text-gray-300">{{ formatRupiah(line.price) }}</span>
                             </div>
                         </div>
                     </div>
@@ -973,23 +994,38 @@ watch(() => page.props.flash?.created_item, (created) => {
                                         :class="line.expanded ? 'rotate-180' : ''" />
                                 </button>
 
-                                <!-- Qty stepper -->
+                                <!-- Qty stepper + input langsung -->
                                 <div class="flex shrink-0 items-center gap-1">
                                     <button type="button" @click="stepQty(line, -1)"
                                         class="flex h-7 w-7 items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                                         −
                                     </button>
-                                    <span class="w-10 text-center text-sm font-semibold text-gray-900 dark:text-white tabular-nums">{{ line.qty }}</span>
+                                    <input
+                                        type="text"
+                                        inputmode="numeric"
+                                        :value="line.qty"
+                                        @input="setQty(line, $event.target.value)"
+                                        class="h-7 w-12 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1 text-center text-sm font-semibold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 transition"
+                                    />
                                     <button type="button" @click="stepQty(line, 1)"
                                         class="flex h-7 w-7 items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                                         +
                                     </button>
                                 </div>
 
-                                <!-- Subtotal (harga tidak bisa diedit di sini — editnya di panel Rincian) -->
-                                <div class="w-32 shrink-0 text-right text-sm font-semibold text-gray-900 dark:text-white tabular-nums">
+                                <!-- Subtotal -->
+                                <div class="w-24 shrink-0 text-right text-sm font-semibold text-gray-900 dark:text-white tabular-nums">
                                     {{ formatRupiah(line.qty * line.price) }}
                                 </div>
+
+                                <!-- Harga per unit — input langsung -->
+                                <input
+                                    type="text"
+                                    inputmode="numeric"
+                                    :value="line.price"
+                                    @input="setPrice(line, $event.target.value)"
+                                    class="h-7 w-24 shrink-0 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 text-right text-xs tabular-nums text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 transition"
+                                />
 
                                 <button type="button" @click="removeItem(line)"
                                     class="shrink-0 rounded-lg p-1.5 text-gray-400 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
@@ -999,8 +1035,6 @@ watch(() => page.props.flash?.created_item, (created) => {
 
                             <!-- Spek (muncul saat di-expand) -->
                             <div v-show="line.expanded" class="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-lg bg-gray-50 dark:bg-gray-800/60 px-3.5 py-2.5">
-                                <span class="text-xs text-gray-400">Harga</span>
-                                <span class="text-xs tabular-nums text-gray-600 dark:text-gray-300">{{ formatRupiah(line.price) }}</span>
                                 <span class="text-xs text-gray-400">Spek</span>
                                 <span class="text-right text-xs text-gray-600 dark:text-gray-300">{{ line.spec || '—' }}</span>
                             </div>

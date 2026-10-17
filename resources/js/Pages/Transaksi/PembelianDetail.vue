@@ -1,14 +1,17 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, CheckCircle2, ChevronRight, Printer, User } from 'lucide-vue-next';
+import { ArrowLeft, CheckCircle2, ChevronRight, Printer, Trash2, User } from 'lucide-vue-next';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import AppBadge from '@/Components/UI/AppBadge.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
 import ReceiptModal from '@/Components/Cart/ReceiptModal.vue';
+import AppConfirmModal from '@/Components/UI/AppConfirmModal.vue';
 import { usePermission } from '@/composables/usePermission';
+import { useConfirm } from '@/composables/useConfirm';
 
 const { can } = usePermission();
+const confirm = useConfirm();
 
 const props = defineProps({
     purchase: { type: Object, required: true },
@@ -18,9 +21,27 @@ const statusColor = { lunas: 'green', hutang: 'yellow' };
 const orderStatusColor = { ordered: 'blue', pending: 'yellow', done: 'green' };
 const orderStatusLabel = { ordered: 'Ordered', pending: 'Pending', done: 'Done' };
 
-const markDone = () => {
-    if (!confirm('Tandai pembelian sebagai Done? Stok akan masuk & mutasi dicatat saat ini.')) return;
+const markDone = async () => {
+    const ok = await confirm.confirm({
+        title: 'Tandai pembelian sebagai Done?',
+        message: 'Stok akan masuk & mutasi dicatat saat ini.',
+        confirmLabel: 'Tandai Done',
+        variant: 'primary',
+    });
+    if (!ok) return;
     router.post(route('transaksi.pembelian.done', props.purchase.id), {}, {
+        preserveScroll: true,
+    });
+};
+
+const deletePurchase = async () => {
+    const ok = await confirm.confirm({
+        title: 'Hapus pembelian?',
+        message: 'Stok akan dikembalikan & mutasi terkait dihapus. Tindakan ini permanen.',
+        confirmLabel: 'Hapus',
+    });
+    if (!ok) return;
+    router.delete(route('transaksi.pembelian.destroy', props.purchase.id), {
         preserveScroll: true,
     });
 };
@@ -120,6 +141,10 @@ const labelClass = 'text-xs text-gray-500 dark:text-gray-500 mb-1';
                     >
                         <CheckCircle2 class="h-4 w-4" />
                         Tandai Done
+                    </AppButton>
+                    <AppButton v-if="can('delete purchase')" variant="danger" size="sm" @click="deletePurchase">
+                        <Trash2 class="h-4 w-4" />
+                        Hapus
                     </AppButton>
                 </div>
             </div>
@@ -240,5 +265,7 @@ const labelClass = 'text-xs text-gray-500 dark:text-gray-500 mb-1';
         <ReceiptModal :show="receiptOpen" :store="store" :sale="receiptSale"
             :phone="waPhone" :wa-text="receiptMessage"
             title="NOTA PEMBELIAN" @close="receiptOpen = false" />
+
+        <AppConfirmModal />
     </AppLayout>
 </template>

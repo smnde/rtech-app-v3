@@ -91,10 +91,13 @@ const sendWa = async () => {
         <div v-if="sale"
             class="mx-auto w-full max-w-[560px] rounded-sm bg-white p-6 text-[10px] leading-relaxed text-slate-800 shadow-lg ring-1 ring-slate-200">
             <div class="flex items-start justify-between gap-6 border-b-2 border-slate-900 pb-4">
-                <div>
-                    <p class="text-[15px] font-bold tracking-wide text-slate-900">{{ store.name || 'Toko' }}</p>
-                    <p v-if="store.address" class="text-[9px] text-slate-500">{{ store.address }}</p>
-                    <p v-if="store.phone" class="text-[9px] text-slate-500">{{ store.phone }}</p>
+                <div class="flex items-center gap-2">
+                    <img src="/icons/apple-touch-icon.png" alt="logo" class="h-10 w-10 rounded-lg object-contain shrink-0" />
+                    <div>
+                        <p class="text-[15px] font-bold tracking-wide text-slate-900">{{ store.name || 'Toko' }}</p>
+                        <p v-if="store.address" class="text-[9px] text-slate-500">{{ store.address }}</p>
+                        <p v-if="store.phone" class="text-[9px] text-slate-500">{{ store.phone }}</p>
+                    </div>
                 </div>
                 <div class="shrink-0 text-right">
                     <p class="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-600">{{ title }}</p>
@@ -175,6 +178,10 @@ const sendWa = async () => {
 
             <p class="mt-6 border-t border-dashed border-slate-300 pt-3 text-center text-[9px] text-slate-500">
                 {{ store.footer || 'Terima kasih' }}
+            </p>
+            <p class="mt-2 text-center text-[7.5px] text-slate-400 leading-relaxed">
+                Garansi berlaku selama tidak ada indikasi Human Error / Kesalahan Pengguna.<br>
+                Tidak ada pengembalian barang / uang untuk barang yang sudah dibeli.
             </p>
         </div>
 

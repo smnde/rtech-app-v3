@@ -9,6 +9,8 @@ use App\Models\Cart;
 use App\Models\Customer;
 use App\Models\Sale;
 use App\Models\SalesDetail;
+use App\Models\StockMovement;
+use App\Support\CashFlowRecorder;
 use App\Support\StockItem;
 use App\Support\StockMovementRecorder;
 use Illuminate\Contracts\Auth\Authenticatable;
@@ -24,13 +26,13 @@ class SalesController extends Controller
     public function index(Request $request): Response
     {
         $today = now()->toDateString();
-        $from  = $request->filled('from') ? $request->string('from')->toString() : $today;
-        $to    = $request->filled('to')   ? $request->string('to')->toString()   : $today;
+        $from = $request->filled('from') ? $request->string('from')->toString() : $today;
+        $to = $request->filled('to') ? $request->string('to')->toString() : $today;
 
         $sales = Sale::query()
             ->with('customer:id,name')
-            ->when($request->search, fn ($query, $search) => $query->where('invoice', 'like', "%{$search}%"))
-            ->when($request->filled('status'), fn ($query) => $query->where('payment_status', $request->string('status')))
+            ->when($request->search, fn($query, $search) => $query->where('invoice', 'like', "%{$search}%"))
+            ->when($request->filled('status'), fn($query) => $query->where('payment_status', $request->string('status')))
             ->whereDate('created_at', '>=', $from)
             ->whereDate('created_at', '<=', $to)
             ->latest()
@@ -42,8 +44,8 @@ class SalesController extends Controller
             'filters' => [
                 'search' => $request->search,
                 'status' => $request->status,
-                'from'   => $from,
-                'to'     => $to,
+                'from' => $from,
+                'to' => $to,
             ],
         ]);
     }
@@ -73,6 +75,7 @@ class SalesController extends Controller
 
         return inertia('Transaksi/PenjualanDetail', [
             'sale' => [
+                'id' => $sale->id,
                 'invoice' => $sale->invoice,
                 'date' => $sale->created_at->toDateTimeString(),
                 'cashier' => $sale->user?->name,
@@ -91,7 +94,7 @@ class SalesController extends Controller
                 'dp_amount' => $sale->dp_amount !== null ? (float) $sale->dp_amount : null,
                 'paid_at' => $sale->paid_at?->toDateTimeString(),
                 'notes' => $sale->notes,
-                'items' => $sale->details->map(fn ($detail) => [
+                'items' => $sale->details->map(fn($detail) => [
                     'item_name' => $detail->item?->name,
                     'item_code' => $detail->item?->sku,
                     'qty' => $detail->qty,
@@ -113,8 +116,8 @@ class SalesController extends Controller
     private function shortSpec(?array $specification): ?string
     {
         $parts = collect(['cpu', 'memory', 'storage'])
-            ->map(fn (string $key) => $specification[$key] ?? null)
-            ->filter(fn ($value) => filled($value))
+            ->map(fn(string $key) => $specification[$key] ?? null)
+            ->filter(fn($value) => filled($value))
             ->all();
 
         return $parts ? implode(' · ', $parts) : null;
@@ -132,7 +135,7 @@ class SalesController extends Controller
             $model::query()
                 ->where('stock', '>', 0)
                 ->where('sell_price', '>', 0)
-                ->when($type === 'laptop', fn ($query) => $query->whereIn('status', ['SIAP JUAL', 'DISPLAY']))
+                ->when($type === 'laptop', fn($query) => $query->whereIn('status', ['SIAP JUAL', 'DISPLAY']))
                 ->orderBy('name')
                 ->get(array_filter(['id', 'name', 'sku', 'sell_price', $hasSpecification ? 'specification' : null]))
                 ->each(function ($item) use ($type, $hasSpecification, &$products) {
@@ -223,12 +226,29 @@ class SalesController extends Controller
                 }
             }
 
+            $cashInAmount = $data['payment_status'] === 'keep' ? (float) ($data['dp_amount'] ?? 0) : $total;
+            if ($cashInAmount > 0) {
+                CashFlowRecorder::record(
+                    'in',
+                    'PENJUALAN',
+                    "Penjualan {$sale->invoice}",
+                    $cashInAmount,
+                    $sale,
+                    $request->user(),
+                    $sale->invoice,
+                );
+            }
+
             $activeCart = Cart::activeFor($request->user(), 'sale');
             $activeCart->items()->delete();
             $activeCart->update(['customer_id' => null, 'total' => 0, 'item_count' => 0]);
         });
 
-        return redirect()->route('transaksi.penjualan')->with('success', 'Penjualan berhasil disimpan.');
+        $receiptSale = $sale->load(['user:id,name', 'customer:id,name,phone,is_member']);
+
+        return redirect()
+            ->route('transaksi.penjualan.show', [$receiptSale, 'print' => 1])
+            ->with('success', 'Penjualan berhasil disimpan.');
     }
 
     public function markPaid(Sale $sale, Request $request): RedirectResponse
@@ -245,7 +265,7 @@ class SalesController extends Controller
             // keep = pelunasan custom → jalankan mutasi keluar saat dilunasi.
             if ($wasKeep) {
                 $this->recordOut(
-                    $sale->details->map(fn ($detail) => [
+                    $sale->details->map(fn($detail) => [
                         'stock_item' => $detail->item,
                         'qty' => (int) $detail->qty,
                     ])->all(),
@@ -256,6 +276,41 @@ class SalesController extends Controller
         });
 
         return redirect()->route('transaksi.penjualan.show', $sale)->with('success', 'Penjualan sudah dilunasi.');
+    }
+
+    public function destroy(Sale $sale, Request $request): RedirectResponse
+    {
+        abort_unless($request->user()->can('delete sale'), 403);
+
+        DB::transaction(function () use ($sale) {
+            if (StockMovement::query()->where('reference', $sale->invoice)->exists()) {
+                $this->reverseStockOut($sale);
+            }
+
+            CashFlowRecorder::deleteByReference($sale->invoice);
+
+            $sale->details()->delete();
+            $sale->delete();
+        });
+
+        return redirect()->route('transaksi.penjualan')->with('success', 'Penjualan dihapus, stok dikembalikan.');
+    }
+
+    private function reverseStockOut(Sale $sale): void
+    {
+        foreach ($sale->details as $detail) {
+            $stockItem = StockItem::modelFor($detail->item_type)::query()
+                ->lockForUpdate()
+                ->find($detail->item_id);
+
+            if (! $stockItem) {
+                continue;
+            }
+
+            $stockItem->increment('stock', $detail->qty);
+        }
+
+        StockMovement::query()->where('reference', $sale->invoice)->delete();
     }
 
     /**

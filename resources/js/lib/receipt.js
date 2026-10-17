@@ -80,11 +80,17 @@ const PAPER_CSS = `
 
 // Kepala dokumen: identitas toko + judul & nomor nota.
 export function storeHead({ store = {}, title = '', invoice = '', badge = null }) {
+    const logoHtml = `<img src="/icons/icon-192.png" alt="logo"
+        style="width:40px;height:40px;object-fit:contain;border-radius:8px;margin-right:8px;flex-shrink:0;" />`;
+
     return `<div class="doc-head">
-        <div>
-            <div class="store-name">${esc(store.name ?? 'Toko')}</div>
-            ${store.address ? `<div class="store-line">${esc(store.address)}</div>` : ''}
-            ${store.phone ? `<div class="store-line">${esc(store.phone)}</div>` : ''}
+        <div style="display:flex;align-items:center;">
+            ${logoHtml}
+            <div>
+                <div class="store-name">${esc(store.name ?? 'Toko')}</div>
+                ${store.address ? `<div class="store-line">${esc(store.address)}</div>` : ''}
+                ${store.phone ? `<div class="store-line">${esc(store.phone)}</div>` : ''}
+            </div>
         </div>
         <div class="doc-title">
             <h1>${esc(title)}</h1>
@@ -95,7 +101,13 @@ export function storeHead({ store = {}, title = '', invoice = '', badge = null }
 }
 
 export function storeFoot(store = {}) {
-    return `<div class="foot">${esc(store.footer ?? 'Terima kasih')}</div>`;
+    return `<div class="foot">
+        <div>${esc(store.footer ?? 'Terima kasih')}</div>
+        <div style="margin-top:4px;font-size:8px;color:#9ca3af;line-height:1.5;">
+            Garansi berlaku selama tidak ada indikasi Human Error / Kesalahan Pengguna.<br>
+            Tidak ada pengembalian barang / uang untuk barang yang sudah dibeli.
+        </div>
+    </div>`;
 }
 
 // Baris tabel barang: nama, kode, serial, spesifikasi, qty, harga, diskon, subtotal.

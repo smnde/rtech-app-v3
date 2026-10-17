@@ -2,15 +2,19 @@
 
 use App\Models\Brand;
 use App\Models\Category;
+use App\Models\CashFlow;
 use App\Models\Customer;
 use App\Models\Laptop;
 use App\Models\Purchase;
+use App\Models\PurchaseDetail;
 use App\Models\Sale;
+use App\Models\SalesDetail;
 use App\Models\Sparepart;
 use App\Models\StockMovement;
 use App\Models\Supplier;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
+use Illuminate\Support\Facades\DB;
 
 beforeEach(function () {
     $this->seed(RolePermissionSeeder::class);
@@ -38,7 +42,7 @@ test('keep sale does not move stock at store, moves only when lunas', function (
         'items' => [
             ['item_type' => 'laptop', 'item_id' => $this->laptop->id, 'qty' => 1, 'price' => 12000000],
         ],
-    ])->assertRedirect(route('transaksi.penjualan'))->assertSessionHas('success');
+    ])->assertSessionHas('success');
 
     // DP keep → stok belum berubah, belum ada mutasi.
     expect($this->laptop->fresh()->stock)->toBe(3)
@@ -62,6 +66,11 @@ test('keep sale does not move stock at store, moves only when lunas', function (
     expect($movement->type)->toBe('out')
         ->and($movement->quantity)->toBe(1)
         ->and($movement->reference)->toBe($sale->invoice);
+
+    $cashFlow = CashFlow::firstOrFail();
+    expect($cashFlow->type)->toBe('in')
+        ->and((float) $cashFlow->amount)->toBe(2000000.0)
+        ->and($cashFlow->reference)->toBe($sale->invoice);
 });
 
 test('hutang sale moves stock at store and lunas does not move twice', function () {
@@ -71,7 +80,7 @@ test('hutang sale moves stock at store and lunas does not move twice', function 
         'items' => [
             ['item_type' => 'laptop', 'item_id' => $this->laptop->id, 'qty' => 1, 'price' => 12000000],
         ],
-    ])->assertRedirect(route('transaksi.penjualan'))->assertSessionHas('success');
+    ])->assertSessionHas('success');
 
     expect($this->laptop->fresh()->stock)->toBe(2)
         ->and(StockMovement::count())->toBe(1);
@@ -84,6 +93,11 @@ test('hutang sale moves stock at store and lunas does not move twice', function 
     expect($sale->fresh()->payment_status)->toBe('lunas')
         ->and($this->laptop->fresh()->stock)->toBe(2)
         ->and(StockMovement::count())->toBe(1);
+
+    $cashFlow = CashFlow::firstOrFail();
+    expect($cashFlow->type)->toBe('in')
+        ->and((float) $cashFlow->amount)->toBe(12000000.0)
+        ->and($cashFlow->reference)->toBe($sale->invoice);
 });
 
 test('sale store rolls back everything when one item has insufficient stock', function () {
@@ -184,6 +198,154 @@ test('sale index and create pages render for users with permission', function ()
     $this->actingAs($this->user)->get('/transaksi/penjualan/create')->assertOk();
     $this->actingAs($this->user)->get('/transaksi/pembelian')->assertOk();
     $this->actingAs($this->user)->get('/transaksi/pembelian/create')->assertOk();
+});
+
+test('destroying a sale restores stock and deletes related movements', function () {
+    $sale = Sale::create([
+        'user_id' => $this->user->id,
+        'subtotal' => 12000000,
+        'discount' => 0,
+        'header_discount' => 0,
+        'total' => 12000000,
+        'payment_status' => 'hutang',
+        'payment_method' => 'tf',
+        'notes' => null,
+    ]);
+
+    SalesDetail::create([
+        'sales_id' => $sale->id,
+        'item_type' => 'laptop',
+        'item_id' => $this->laptop->id,
+        'qty' => 1,
+        'price' => 12000000,
+        'subtotal' => 12000000,
+    ]);
+
+    StockMovement::create([
+        'item_type' => 'laptop',
+        'item_id' => $this->laptop->id,
+        'user_id' => $this->user->id,
+        'type' => 'out',
+        'status' => 'TERJUAL',
+        'movement_date' => now()->toDateString(),
+        'quantity' => 1,
+        'stock_before' => 3,
+        'stock_after' => 2,
+        'reference' => $sale->invoice,
+    ]);
+
+    $this->laptop->decrement('stock', 1);
+    expect($this->laptop->fresh()->stock)->toBe(2);
+
+    CashFlow::create([
+        'user_id' => $this->user->id,
+        'item_type' => Sale::class,
+        'item_id' => $sale->id,
+        'type' => 'in',
+        'category' => 'PENJUALAN',
+        'description' => "Penjualan {$sale->invoice}",
+        'amount' => 12000000,
+        'flow_date' => now()->toDateString(),
+        'reference' => $sale->invoice,
+    ]);
+
+    $this->actingAs($this->user)->delete(route('transaksi.penjualan.destroy', $sale))
+        ->assertRedirect(route('transaksi.penjualan'))->assertSessionHas('success');
+
+    expect($this->laptop->fresh()->stock)->toBe(3)
+        ->and(StockMovement::count())->toBe(0)
+        ->and(Sale::count())->toBe(0)
+        ->and(DB::table('sales_details')->count())->toBe(0)
+        ->and(CashFlow::count())->toBe(0);
+});
+
+test('destroying a sale without movements leaves stock untouched', function () {
+    $sale = Sale::create([
+        'user_id' => $this->user->id,
+        'subtotal' => 12000000,
+        'discount' => 0,
+        'header_discount' => 0,
+        'total' => 12000000,
+        'payment_status' => 'keep',
+        'payment_method' => 'cash',
+        'dp_amount' => 2000000,
+        'paid_at' => now()->toDateString(),
+        'notes' => null,
+    ]);
+
+    SalesDetail::create([
+        'sales_id' => $sale->id,
+        'item_type' => 'laptop',
+        'item_id' => $this->laptop->id,
+        'qty' => 1,
+        'price' => 12000000,
+        'subtotal' => 12000000,
+    ]);
+
+    $this->actingAs($this->user)->delete(route('transaksi.penjualan.destroy', $sale))
+        ->assertRedirect(route('transaksi.penjualan'))->assertSessionHas('success');
+
+    expect($this->laptop->fresh()->stock)->toBe(3)
+        ->and(StockMovement::count())->toBe(0)
+        ->and(Sale::count())->toBe(0);
+});
+
+test('destroying a done purchase reverses stock in and deletes related movements', function () {
+    $supplier = Supplier::create(['name' => 'PT Sumber', 'phone' => '0215', 'address' => 'Jakarta']);
+
+    $purchase = Purchase::create([
+        'supplier_id' => $supplier->id,
+        'user_id' => $this->user->id,
+        'total' => 20000000,
+        'payment_status' => 'lunas',
+        'status' => 'done',
+        'notes' => null,
+    ]);
+
+    PurchaseDetail::create([
+        'purchase_id' => $purchase->id,
+        'item_type' => 'laptop',
+        'item_id' => $this->laptop->id,
+        'qty' => 2,
+        'buy_price' => 10000000,
+        'subtotal' => 20000000,
+    ]);
+
+    StockMovement::create([
+        'item_type' => 'laptop',
+        'item_id' => $this->laptop->id,
+        'user_id' => $this->user->id,
+        'type' => 'in',
+        'status' => 'PEMBELIAN',
+        'movement_date' => now()->toDateString(),
+        'quantity' => 2,
+        'stock_before' => 3,
+        'stock_after' => 5,
+        'reference' => $purchase->invoice,
+    ]);
+
+    $this->laptop->increment('stock', 2);
+    expect($this->laptop->fresh()->stock)->toBe(5);
+
+    CashFlow::create([
+        'user_id' => $this->user->id,
+        'item_type' => Purchase::class,
+        'item_id' => $purchase->id,
+        'type' => 'out',
+        'category' => 'PEMBELIAN',
+        'description' => "Pembelian {$purchase->invoice}",
+        'amount' => 20000000,
+        'flow_date' => now()->toDateString(),
+        'reference' => $purchase->invoice,
+    ]);
+
+    $this->actingAs($this->user)->delete(route('transaksi.pembelian.destroy', $purchase))->assertRedirect(route('transaksi.pembelian'))->assertSessionHas('success');
+
+    expect($this->laptop->fresh()->stock)->toBe(3)
+        ->and(StockMovement::count())->toBe(0)
+        ->and(Purchase::count())->toBe(0)
+        ->and(DB::table('purchase_details')->count())->toBe(0)
+        ->and(CashFlow::count())->toBe(0);
 });
 
 test('sale create only lists sellable products with stock, price and allowed laptop status', function () {

@@ -29,7 +29,6 @@ return new class extends Migration
             $table->json('complaint');
             $table->json('accessories')->nullable();
             $table->json('condition')->nullable();
-            $table->string('estimated_cost');
             $table->dateTime('check_deadline_at')->nullable();
             $table->dateTime('process_deadline_at')->nullable();
             $table->enum('status', [

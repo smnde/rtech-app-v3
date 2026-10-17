@@ -14,7 +14,6 @@ import AppNumberInput from '@/Components/UI/AppNumberInput.vue';
 import AppCurrencyInput from '@/Components/UI/AppCurrencyInput.vue';
 import AppDatePicker from '@/Components/UI/AppDatePicker.vue';
 import CustomerFormModal from '@/Components/Customers/CustomerFormModal.vue';
-
 const props = defineProps({
     products: { type: Array, default: () => [] },
     customers: { type: Array, default: () => [] },

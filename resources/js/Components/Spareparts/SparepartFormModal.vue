@@ -79,8 +79,9 @@ const validate = () => {
 const handleSubmit = () => {
     if (!validate()) return;
     loading.value = true;
+    const { stock, ...rest } = form.value;
     emit('submit', {
-        ...form.value,
+        ...rest,
         category_id: Number(form.value.category_id),
         brand_id:    Number(form.value.brand_id),
         supplier_id: form.value.supplier_id === '' ? null : Number(form.value.supplier_id),

@@ -1,18 +1,33 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, CheckCircle2, ChevronRight, Printer, User } from 'lucide-vue-next';
+import { ArrowLeft, CheckCircle2, ChevronRight, Printer, Trash2, User } from 'lucide-vue-next';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import AppBadge from '@/Components/UI/AppBadge.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
+import AppConfirmModal from '@/Components/UI/AppConfirmModal.vue';
 import { usePermission } from '@/composables/usePermission';
+import { useConfirm } from '@/composables/useConfirm';
 import ReceiptModal from '@/Components/Cart/ReceiptModal.vue';
 
 const { can } = usePermission();
+const confirm = useConfirm();
 
 const markPaid = () => {
     if (!confirm('Tandai penjualan sebagai Lunas?')) return;
     router.post(route('transaksi.penjualan.lunas', props.sale.id), {}, {
+        preserveScroll: true,
+    });
+};
+
+const deleteSale = async () => {
+    const ok = await confirm.confirm({
+        title: 'Hapus penjualan?',
+        message: 'Stok akan dikembalikan & mutasi terkait dihapus. Tindakan ini permanen.',
+        confirmLabel: 'Hapus',
+    });
+    if (!ok) return;
+    router.delete(route('transaksi.penjualan.destroy', props.sale.id), {
         preserveScroll: true,
     });
 };
@@ -133,6 +148,10 @@ const waPhone = computed(() => props.sale.customer?.phone ?? '');
                     <AppButton variant="primary" size="sm" @click="receiptOpen = true">
                         <Printer class="h-4 w-4" />
                         Cetak Nota
+                    </AppButton>
+                    <AppButton v-if="can('delete sale')" variant="danger" size="sm" @click="deleteSale">
+                        <Trash2 class="h-4 w-4" />
+                        Hapus
                     </AppButton>
                 </div>
             </div>
@@ -274,5 +293,7 @@ const waPhone = computed(() => props.sale.customer?.phone ?? '');
         <ReceiptModal :show="receiptOpen" :store="store" :sale="receiptSale"
             :phone="waPhone" :wa-text="receiptMessage"
             title="NOTA PENJUALAN" @close="receiptOpen = false" />
+
+        <AppConfirmModal />
     </AppLayout>
 </template>

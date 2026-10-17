@@ -2,7 +2,7 @@
 import { usePermission } from '@/composables/usePermission';
 import { ref, reactive, computed, watch } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Plus, Search, Truck, Inbox, X } from 'lucide-vue-next';
+import { Plus, Search, Truck, Inbox, X, Trash2 } from 'lucide-vue-next';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import AppPageHeader from '@/Components/UI/AppPageHeader.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
@@ -12,7 +12,9 @@ import AppTable from '@/Components/UI/AppTable.vue';
 import AppDropdown from '@/Components/UI/AppDropdown.vue';
 import AppFilterModal from '@/Components/UI/AppFilterModal.vue';
 import AppDateRangePicker from '@/Components/UI/AppDateRangePicker.vue';
+import AppConfirmModal from '@/Components/UI/AppConfirmModal.vue';
 import { useToast } from '@/composables/useToast';
+import { useConfirm } from '@/composables/useConfirm';
 
 const { can } = usePermission();
 
@@ -22,6 +24,7 @@ const props = defineProps({
 });
 
 const toast = useToast();
+const confirm = useConfirm();
 const page = usePage();
 
 watch(
@@ -106,6 +109,16 @@ const orderStatusColor = { ordered: 'blue', pending: 'yellow', done: 'green' };
 
 const orderStatusLabel = { ordered: 'Ordered', pending: 'Pending', done: 'Done' };
 
+const deletePurchase = async (row) => {
+    const ok = await confirm.confirm({
+        title: `Hapus ${row.invoice}?`,
+        message: 'Stok akan dikembalikan & mutasi terkait dihapus. Tindakan ini permanen.',
+        confirmLabel: 'Hapus',
+    });
+    if (!ok) return;
+    router.delete(route('transaksi.pembelian.destroy', row.id), { preserveScroll: true });
+};
+
 const columns = [
     { key: 'no', label: '#' },
     { key: 'invoice', label: 'No. Invoice' },
@@ -114,6 +127,7 @@ const columns = [
     { key: 'order_status', label: 'Progres' },
     { key: 'total', label: 'Total' },
     { key: 'status', label: 'Status' },
+    { key: 'aksi', label: '' },
 ];
 </script>
 
@@ -217,6 +231,11 @@ const columns = [
                         <td class="px-5 py-3">
                             <AppBadge :color="statusColor[row.payment_status] ?? 'gray'" size="sm" dot>{{ row.payment_status }}</AppBadge>
                         </td>
+                        <td class="px-5 py-3 text-right">
+                            <AppButton v-if="can('delete purchase')" variant="ghost" size="sm" icon-only title="Hapus" @click.stop="deletePurchase(row)">
+                                <Trash2 class="h-4 w-4" />
+                            </AppButton>
+                        </td>
                     </tr>
                 </tbody>
             <template #pagination>
@@ -248,6 +267,9 @@ const columns = [
                         <div class="flex items-center gap-1.5">
                             <AppBadge :color="orderStatusColor[row.status] ?? 'gray'" size="sm">{{ orderStatusLabel[row.status] ?? row.status }}</AppBadge>
                             <AppBadge :color="statusColor[row.payment_status] ?? 'gray'" size="sm" dot>{{ row.payment_status }}</AppBadge>
+                            <AppButton v-if="can('delete purchase')" variant="ghost" size="sm" icon-only title="Hapus" @click.stop="deletePurchase(row)">
+                                <Trash2 class="h-4 w-4" />
+                            </AppButton>
                         </div>
                     </div>
 
@@ -267,6 +289,8 @@ const columns = [
             <div v-if="purchases.total > 0" class="mt-4 sm:hidden">
                 <AppPagination :paginator="purchases" />
             </div>
+
+            <AppConfirmModal />
         </div>
     </AppLayout>
 </template>

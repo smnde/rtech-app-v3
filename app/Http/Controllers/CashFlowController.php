@@ -3,9 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\CashFlow;
-use App\Models\Expense;
-use App\Models\Purchase;
-use App\Models\Sale;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -39,13 +36,10 @@ class CashFlowController extends Controller
             ->withQueryString();
 
         // Summary: semua waktu (untuk saldo total)
-        $cashIn      = (float) CashFlow::where('type', 'in')->sum('amount');
-        $cashOut     = (float) CashFlow::where('type', 'out')->sum('amount');
-        $salesTotal  = (float) Sale::sum('total');
-        $purchTotal  = (float) Purchase::sum('total');
-        $expTotal    = (float) Expense::sum('amount');
+        $cashIn = (float) CashFlow::where('type', 'in')->sum('amount');
+        $cashOut = (float) CashFlow::where('type', 'out')->sum('amount');
 
-        $balance = $cashIn - $cashOut + $salesTotal - $purchTotal - $expTotal;
+        $balance = $cashIn - $cashOut;
 
         // Summary untuk periode yang ditampilkan
         $periodIn  = (float) CashFlow::query()

@@ -47,10 +47,11 @@ class DashboardController extends Controller
         $purchasesTodayTotal = (float) Purchase::query()->whereDate('created_at', $today)->sum('total');
         $expensesTodayTotal  = (float) Expense::query()->whereDate('created_at', $today)->sum('amount');
 
-        $cashFlowIn  = (float) CashFlow::where('type', 'in')->sum('amount');
+        $cashFlowIn = (float) CashFlow::where('type', 'in')->sum('amount');
         $cashFlowOut = (float) CashFlow::where('type', 'out')->sum('amount');
-        $totalIncome  = (float) Sale::query()->sum('total') + $cashFlowIn;
-        $totalOutcome = (float) Purchase::query()->sum('total') + (float) Expense::query()->sum('amount') + $cashFlowOut;
+
+        $totalIncome = $cashFlowIn;
+        $totalOutcome = $cashFlowOut;
 
         return Inertia::render('Dashboard', [
             'stats' => [

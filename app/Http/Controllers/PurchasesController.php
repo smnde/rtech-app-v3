@@ -11,7 +11,9 @@ use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Purchase;
 use App\Models\PurchaseDetail;
+use App\Models\StockMovement;
 use App\Models\Supplier;
+use App\Support\CashFlowRecorder;
 use App\Support\StockItem;
 use App\Support\StockMovementRecorder;
 use Illuminate\Contracts\Auth\Authenticatable;
@@ -26,8 +28,8 @@ class PurchasesController extends Controller
     public function index(Request $request): Response
     {
         $today = now()->toDateString();
-        $from  = $request->filled('from') ? $request->string('from')->toString() : $today;
-        $to    = $request->filled('to')   ? $request->string('to')->toString()   : $today;
+        $from = $request->filled('from') ? $request->string('from')->toString() : $today;
+        $to = $request->filled('to') ? $request->string('to')->toString() : $today;
 
         $purchases = Purchase::query()
             ->with(['supplier:id,name', 'customer:id,name'])
@@ -43,11 +45,11 @@ class PurchasesController extends Controller
         return inertia('Transaksi/Pembelian', [
             'purchases' => PurchasesResource::collection($purchases),
             'filters' => [
-                'search'       => $request->search,
-                'status'       => $request->status,
+                'search' => $request->search,
+                'status' => $request->status,
                 'order_status' => $request->order_status,
-                'from'         => $from,
-                'to'           => $to,
+                'from' => $from,
+                'to' => $to,
             ],
         ]);
     }
@@ -80,6 +82,7 @@ class PurchasesController extends Controller
 
         return inertia('Transaksi/PembelianDetail', [
             'purchase' => [
+                'id' => $purchase->id,
                 'invoice' => $purchase->invoice,
                 'date' => $purchase->created_at->toDateTimeString(),
                 'cashier' => $purchase->user?->name,
@@ -196,6 +199,18 @@ class PurchasesController extends Controller
                 $this->applyStockIn($lines, $request->user(), $purchase->invoice);
             }
 
+            if ($data['payment_status'] === 'lunas' && $total > 0) {
+                CashFlowRecorder::record(
+                    'out',
+                    'PEMBELIAN',
+                    "Pembelian {$purchase->invoice}",
+                    $total,
+                    $purchase,
+                    $request->user(),
+                    $purchase->invoice,
+                );
+            }
+
             $activeCart = Cart::activeFor($request->user(), 'purchase');
             $activeCart->items()->delete();
             $activeCart->update(['customer_id' => null, 'total' => 0, 'item_count' => 0]);
@@ -228,17 +243,49 @@ class PurchasesController extends Controller
             DB::transaction(function () use ($purchase, $request) {
                 $purchase->update(['status' => 'done']);
 
-                $this->applyStockIn(
-                    $purchase->details->map(fn ($detail) => [
-                        'stock_item' => $detail->item,
-                        'qty' => (int) $detail->qty,
-                    ])->all(),
-                    $request->user(),
-                    $purchase->invoice,
-                );
+                $purchase->load('details');
+                $lines = $purchase->details->map(fn ($detail) => [
+                    'stock_item' => $detail->item,
+                    'qty' => (int) $detail->qty,
+                ])->all();
+
+                $this->applyStockIn($lines, $request->user(), $purchase->invoice);
             });
         }
 
         return redirect()->route('transaksi.pembelian.show', $purchase)->with('success', 'Pembelian ditandai selesai.');
+    }
+
+    public function destroy(Purchase $purchase): RedirectResponse
+    {
+        DB::transaction(function () use ($purchase) {
+            if (StockMovement::query()->where('reference', $purchase->invoice)->exists()) {
+                $this->reverseStockIn($purchase);
+            }
+
+            CashFlowRecorder::deleteByReference($purchase->invoice);
+
+            $purchase->details()->delete();
+            $purchase->delete();
+        });
+
+        return redirect()->route('transaksi.pembelian')->with('success', 'Pembelian dihapus, stok dikembalikan.');
+    }
+
+    private function reverseStockIn(Purchase $purchase): void
+    {
+        foreach ($purchase->details as $detail) {
+            $stockItem = StockItem::modelFor($detail->item_type)::query()
+                ->lockForUpdate()
+                ->find($detail->item_id);
+
+            if (! $stockItem) {
+                continue;
+            }
+
+            $stockItem->decrement('stock', $detail->qty);
+        }
+
+        StockMovement::query()->where('reference', $purchase->invoice)->delete();
     }
 }

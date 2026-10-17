@@ -1,9 +1,9 @@
 <?php
 
 use App\Http\Controllers\AccesoriesController;
-use App\Http\Controllers\CashFlowController;
 use App\Http\Controllers\BrandsController;
 use App\Http\Controllers\CartsController;
+use App\Http\Controllers\CashFlowController;
 use App\Http\Controllers\CategoriesController;
 use App\Http\Controllers\CustomerNotesController;
 use App\Http\Controllers\CustomersController;
@@ -25,9 +25,7 @@ use App\Http\Controllers\SparepartsController;
 use App\Http\Controllers\StockMovementsController;
 use App\Http\Controllers\SuppliersController;
 use App\Http\Controllers\UsersController;
-use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
 Route::get('/', function () {
     return auth()->check() ? redirect()->route('dashboard') : redirect()->route('login');
@@ -140,9 +138,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/penjualan', [SalesController::class, 'store'])->middleware('permission:add sale')->name('penjualan.store');
         Route::get('/penjualan/{sale}', [SalesController::class, 'show'])->middleware('permission:show sale')->name('penjualan.show');
         Route::post('/penjualan/{sale}/lunas', [SalesController::class, 'markPaid'])->middleware('permission:edit sale')->name('penjualan.lunas');
+        Route::delete('/penjualan/{sale}', [SalesController::class, 'destroy'])->middleware('permission:delete sale')->name('penjualan.destroy');
         Route::get('/pembelian', [PurchasesController::class, 'index'])->middleware('permission:show purchase')->name('pembelian');
         Route::get('/pembelian/create', [PurchasesController::class, 'create'])->middleware('permission:add purchase')->name('pembelian.create');
         Route::post('/pembelian/{purchase}/done', [PurchasesController::class, 'markDone'])->middleware('permission:edit purchase')->name('pembelian.done');
+        Route::delete('/pembelian/{purchase}', [PurchasesController::class, 'destroy'])->middleware('permission:delete purchase')->name('pembelian.destroy');
         Route::get('/pembelian/{purchase}', [PurchasesController::class, 'show'])->middleware('permission:show purchase')->name('pembelian.show');
         Route::post('/pembelian', [PurchasesController::class, 'store'])->middleware('permission:add purchase')->name('pembelian.store');
 
@@ -187,4 +187,4 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 });
 
-require __DIR__ . '/auth.php';
+require __DIR__.'/auth.php';
