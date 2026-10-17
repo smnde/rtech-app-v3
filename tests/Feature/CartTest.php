@@ -146,7 +146,7 @@ test('a successful purchase clears the active purchase cart', function () {
     $cart = Cart::activeFor($this->user, 'purchase');
     $this->actingAs($this->user)->post(route('transaksi.pembelian.store'), [
         'payment_status' => 'lunas',
-        'po_type' => 'non_po',
+        'status' => 'done',
         'items' => [[
             'item_type' => 'laptop',
             'item_id' => $this->laptop->id,
@@ -204,6 +204,7 @@ test('a successful sale clears the active sale cart', function () {
     $this->actingAs($this->user)->post(route('transaksi.penjualan.store'), [
         'customer_id' => $customer->id,
         'payment_status' => 'lunas',
+        'payment_method' => 'cash',
         'discount' => 0,
         'items' => [[
             'item_type' => 'laptop',

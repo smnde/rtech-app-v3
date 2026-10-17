@@ -1,7 +1,7 @@
 <script setup>
 import { computed, reactive, ref } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ArrowLeft, Phone, MapPin, Plus, Trash2, Check, Undo2 } from 'lucide-vue-next';
+import { ArrowLeft, Phone, MapPin, Plus, Trash2, Check, Undo2, MessageCircle } from 'lucide-vue-next';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
 import AppBadge from '@/Components/UI/AppBadge.vue';
@@ -9,6 +9,7 @@ import AppCard from '@/Components/UI/AppCard.vue';
 import AppDropdown from '@/Components/UI/AppDropdown.vue';
 import { usePermission } from '@/composables/usePermission';
 import { useConfirm } from '@/composables/useConfirm';
+import { waLink } from '@/lib/whatsapp';
 
 const props = defineProps({
     customer:     { type: Object, required: true },
@@ -75,6 +76,11 @@ const TRANSACTION_STATUS = {
     lunas:  'emerald',
     hutang: 'red',
     keep:   'amber',
+};
+
+const TRANSACTION_TYPE = {
+    Penjualan: 'blue',
+    Pembelian: 'purple',
 };
 </script>
 
@@ -156,17 +162,21 @@ const TRANSACTION_STATUS = {
                         <p v-if="transactions.length === 0" class="text-sm text-gray-500 dark:text-gray-400">Belum ada transaksi.</p>
 
                         <ul v-else class="divide-y divide-gray-100 dark:divide-gray-800">
-                            <li v-for="trx in transactions" :key="`${trx.type}-${trx.reference}`" class="flex items-center justify-between gap-3 py-3">
-                                <div class="min-w-0">
-                                    <p class="text-sm font-medium text-gray-900 dark:text-white">
-                                        {{ trx.type }} <span class="font-mono text-xs text-gray-500">{{ trx.reference }}</span>
-                                    </p>
-                                    <p class="text-xs text-gray-400">{{ formatDateTime(trx.date) }}</p>
-                                </div>
-                                <div class="shrink-0 text-right">
-                                    <p class="text-sm font-semibold text-gray-900 dark:text-white tabular-nums">{{ rupiah(trx.total) }}</p>
-                                    <AppBadge :color="TRANSACTION_STATUS[trx.status] ?? 'gray'" size="sm">{{ trx.status }}</AppBadge>
-                                </div>
+                            <li v-for="trx in transactions" :key="`${trx.type}-${trx.reference}`">
+                                <Link :href="trx.href"
+                                    class="flex items-center justify-between gap-3 py-3 -mx-2 px-2 rounded-lg transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                                    <div class="min-w-0">
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <AppBadge :color="TRANSACTION_TYPE[trx.type] ?? 'gray'" size="sm">{{ trx.type }}</AppBadge>
+                                            <span class="font-mono text-sm font-medium text-gray-900 dark:text-white truncate">{{ trx.reference }}</span>
+                                        </div>
+                                        <p class="mt-1 text-xs text-gray-400">{{ formatDateTime(trx.date) }}</p>
+                                    </div>
+                                    <div class="shrink-0 text-right">
+                                        <p class="text-sm font-semibold text-gray-900 dark:text-white tabular-nums">{{ rupiah(trx.total) }}</p>
+                                        <AppBadge :color="TRANSACTION_STATUS[trx.status] ?? 'gray'" size="sm">{{ trx.status }}</AppBadge>
+                                    </div>
+                                </Link>
                             </li>
                         </ul>
                     </AppCard>
@@ -180,6 +190,14 @@ const TRANSACTION_STATUS = {
                             <div class="flex items-center gap-2 text-gray-700 dark:text-gray-300">
                                 <Phone class="h-4 w-4 shrink-0 text-gray-400" />
                                 <span class="tabular-nums">{{ customer.phone }}</span>
+                                <a v-if="waLink(customer.phone)"
+                                    :href="waLink(customer.phone)"
+                                    target="_blank" rel="noopener"
+                                    title="Chat WhatsApp"
+                                    class="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 transition-colors hover:bg-green-100 dark:bg-green-500/10 dark:text-green-400 dark:hover:bg-green-500/20">
+                                    <MessageCircle class="h-3.5 w-3.5" />
+                                    WhatsApp
+                                </a>
                             </div>
                             <div class="flex items-start gap-2 text-gray-700 dark:text-gray-300">
                                 <MapPin class="h-4 w-4 mt-0.5 shrink-0 text-gray-400" />

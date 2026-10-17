@@ -12,7 +12,7 @@ import ItemLogForm from '@/Components/ItemLog/ItemLogForm.vue';
 import { useToast } from '@/composables/useToast';
 import { usePermission } from '@/composables/usePermission';
 import { useConfirm } from '@/composables/useConfirm';
-import { useLaptopPriceTag } from '@/composables/useLaptopPriceTag';
+import { useItemPriceTag } from '@/composables/useItemPriceTag';
 
 const props = defineProps({
     module:    { type: String, required: true },
@@ -42,10 +42,10 @@ const handleEditSubmit = (payload) => {
 const page = usePage();
 const toast = useToast();
 const confirm = useConfirm();
-const { addLaptopToPriceTag } = useLaptopPriceTag();
+const { addItemToPriceTag } = useItemPriceTag();
 
 const printPriceTag = () => {
-    addLaptopToPriceTag(props.item);
+    addItemToPriceTag(props.item);
     toast.success(`${props.item.name} ditambahkan ke Price Tag.`);
 };
 const { can, hasRole } = usePermission();
@@ -205,14 +205,14 @@ const formatMovementQuantity = (movement) => {
     <AppLayout :title="`${moduleLabel} — Detail`">
         <div class="flex-1 min-h-0 flex flex-col gap-4">
 
-            <div class="shrink-0 flex items-center justify-between gap-3">
+            <div class="shrink-0 flex flex-wrap items-center justify-between gap-3">
                 <Link :href="route(backRoute)"
                     class="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors">
                     <ArrowLeft class="h-4 w-4" />
                     Kembali ke daftar {{ moduleLabel.toLowerCase() }}
                 </Link>
-                <div v-if="isLaptop" class="flex items-center gap-2">
-                    <AppButton v-if="can('edit laptop')" variant="outline" size="sm" @click="showEditModal = true">
+                <div v-if="hasSpecification" class="flex flex-wrap items-center gap-2">
+                    <AppButton v-if="isLaptop && can('edit laptop')" variant="outline" size="sm" @click="showEditModal = true">
                         <Pencil class="h-3.5 w-3.5" />
                         Edit
                     </AppButton>

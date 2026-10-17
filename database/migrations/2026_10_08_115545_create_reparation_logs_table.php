@@ -18,8 +18,18 @@ return new class extends Migration
                 ->onDelete('restrict')
                 ->onUpdate('cascade');
 
+            $table->foreignId('user_id')->nullable()->after('reparation_id')
+                ->constrained()
+                ->onDelete('restrict')
+                ->onUpdate('cascade');
+
             $table->string('type');
+            $table->string('event')->nullable()->after('type')->index();
+            $table->string('from_value')->nullable()->after('event');
+            $table->string('to_value')->nullable()->after('from_value');
             $table->string('description');
+            $table->text('note')->nullable()->after('to_value');
+            $table->timestamp('occurred_at')->nullable()->after('note')->index();
             $table->timestamps();
         });
     }

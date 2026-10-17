@@ -42,6 +42,7 @@ class HandleInertiaRequests extends Middleware
                 'customer' => fn () => $request->session()->get('customer'),
                 'created_item' => fn () => $request->session()->get('created_item'),
             ],
+            'store' => config('store'),
         ];
     }
 }

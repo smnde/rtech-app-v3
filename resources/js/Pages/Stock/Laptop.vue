@@ -17,7 +17,7 @@ import { useStockFilter } from '@/composables/useStockFilter';
 import AppSortToggle from '@/Components/UI/AppSortToggle.vue';
 import AppFilterModal from '@/Components/UI/AppFilterModal.vue';
 import { useConfirm } from '@/composables/useConfirm';
-import { useLaptopPriceTag } from '@/composables/useLaptopPriceTag';
+import { useItemPriceTag } from '@/composables/useItemPriceTag';
 
 const { can } = usePermission();
 
@@ -78,10 +78,10 @@ const handleSubmit = (payload) => {
     }
 };
 
-const { addLaptopToPriceTag } = useLaptopPriceTag();
+const { addItemToPriceTag } = useItemPriceTag();
 
 const printPriceTag = (item) => {
-    addLaptopToPriceTag(item);
+    addItemToPriceTag(item);
     toast.success(`${item.name} ditambahkan ke Price Tag.`);
 };
 
@@ -97,12 +97,6 @@ const handleDelete = async (item) => {
 
 const formatRupiah = (value) =>
     value == null || value === '' ? '—' : `Rp ${Number(value).toLocaleString('id-ID')}`;
-
-const stockBadge = (qty) => {
-    if (qty === 0) return { color: 'red', label: 'Habis' };
-    if (qty < 5)   return { color: 'yellow', label: 'Kritis' };
-    return { color: 'green', label: 'Tersedia' };
-};
 
 const statusColors = {
     'SIAP JUAL': 'green',
@@ -214,14 +208,7 @@ const statusColors = {
                         <td class="px-5 py-3 text-sm text-gray-600 dark:text-gray-300">{{ item.brand_name ?? '—' }}</td>
                         <td class="px-5 py-3 text-sm font-mono text-gray-500 dark:text-gray-400">{{ item.sku }}</td>
                         <td class="px-5 py-3 text-sm font-mono text-gray-500 dark:text-gray-400">{{ item.code ?? '—' }}</td>
-                        <td class="px-5 py-3">
-                            <div class="flex items-center gap-2">
-                                <span class="font-semibold text-gray-900 dark:text-white">{{ item.stock }}</span>
-                                <AppBadge :color="stockBadge(item.stock).color" size="sm" dot>
-                                    {{ stockBadge(item.stock).label }}
-                                </AppBadge>
-                            </div>
-                        </td>
+                        <td class="px-5 py-3 text-sm font-semibold text-gray-900 dark:text-white">{{ item.stock }}</td>
                         <td class="px-5 py-3 text-sm font-medium text-gray-900 dark:text-white">{{ formatRupiah(item.sell_price) }}</td>
                         <td class="px-5 py-3">
                             <AppBadge :color="statusColors[item.status] ?? 'gray'" size="sm" dot>{{ item.status }}</AppBadge>

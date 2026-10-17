@@ -22,6 +22,7 @@ class StoreSaleRequest extends FormRequest
         return [
             'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
             'payment_status' => ['required', Rule::in(['lunas', 'hutang', 'keep'])],
+            'payment_method' => ['required', Rule::in(['cash', 'tf'])],
             'dp_amount' => ['nullable', 'numeric', 'min:0', 'required_if:payment_status,keep'],
             'paid_at' => ['nullable', 'date', 'required_if:payment_status,keep'],
             'notes' => ['nullable', 'string', 'max:500'],

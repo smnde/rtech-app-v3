@@ -19,7 +19,9 @@ const emit = defineEmits(['update:modelValue']);
 const formatter = new Intl.NumberFormat('id-ID');
 const display   = ref('');
 
-const digitsOf = (value) => String(value ?? '').replace(/\D/g, '');
+// String desimal dari backend ("2500000.00") harus dibaca sebagai 2500000,
+// bukan 250000000 — buang bagian pecahan sebelum membersihkan non-digit.
+const digitsOf = (value) => String(value ?? '').split('.')[0].replace(/\D/g, '');
 
 const format = (digits) => (digits === '' ? '' : formatter.format(Number(digits)));
 

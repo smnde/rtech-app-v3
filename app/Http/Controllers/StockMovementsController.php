@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -17,8 +18,8 @@ class StockMovementsController extends Controller
     {
         $movements = StockMovement::query()
             ->with(['item', 'user:id,name'])
-            ->when($request->filled('from'), fn ($query) => $query->whereDate('created_at', '>=', $request->string('from')))
-            ->when($request->filled('to'), fn ($query) => $query->whereDate('created_at', '<=', $request->string('to')))
+            ->when($request->filled('from'), fn ($query) => $query->whereDate('movement_date', '>=', $request->string('from')))
+            ->when($request->filled('to'), fn ($query) => $query->whereDate('movement_date', '<=', $request->string('to')))
             ->when($request->filled('type') && $request->string('type') !== 'all', fn ($query) => $query->where('type', $request->string('type')))
             ->when($request->filled('status') && $request->string('status') !== 'all', fn ($query) => $query->where('status', $request->string('status')))
             ->latest()
@@ -28,7 +29,7 @@ class StockMovementsController extends Controller
         return Inertia::render('StockMovements/Index', [
             'movements' => $movements->through(fn (StockMovement $movement) => [
                 'id' => $movement->id,
-                'date' => $movement->created_at->toDateString(),
+                'date' => $movement->movement_date?->toDateString(),
                 'item_name' => $movement->item?->name ?? '-',
                 'item_type' => $movement->item_type,
                 'type' => $movement->type,
@@ -37,6 +38,7 @@ class StockMovementsController extends Controller
                 'stock_before' => $movement->stock_before,
                 'stock_after' => $movement->stock_after,
                 'reference' => $movement->reference,
+                'notes' => $movement->notes,
                 'user_name' => $movement->user?->name,
             ]),
             'items' => collect(StockItem::types())->flatMap(
@@ -66,7 +68,8 @@ class StockMovementsController extends Controller
             'item_type' => ['required', 'string', 'in:'.implode(',', array_keys(StockItem::types()))],
             'item_id' => ['required', 'integer'],
             'type' => ['required', 'in:in,out,adjustment'],
-            'status' => ['required_unless:type,adjustment', 'nullable', 'in:NONE,BONUS,DEBT,SOLD OUT,REFUND'],
+            'status' => ['required_unless:type,adjustment', 'nullable', 'in:PEMBELIAN,REFUND,TERJUAL,BONUS,HUTANG'],
+            'movement_date' => ['required', 'date'],
             'quantity' => ['required', 'integer', 'min:1'],
             'reference' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string'],
@@ -95,7 +98,8 @@ class StockMovementsController extends Controller
                 'item_id' => $stockItem->id,
                 'user_id' => $request->user()->id,
                 'type' => $data['type'],
-                'status' => $data['type'] === 'adjustment' ? 'NONE' : $data['status'],
+                'status' => $data['type'] === 'adjustment' ? null : $data['status'],
+                'movement_date' => $data['movement_date'],
                 'quantity' => $data['quantity'],
                 'stock_before' => $stockBefore,
                 'stock_after' => $stockAfter,
@@ -105,5 +109,41 @@ class StockMovementsController extends Controller
         });
 
         return back()->with('success', 'Mutasi stok berhasil dicatat.');
+    }
+
+    public function update(Request $request, StockMovement $stockMovement): RedirectResponse
+    {
+        $data = $request->validate([
+            'movement_date' => ['required', 'date'],
+            'notes' => ['nullable', 'string'],
+        ]);
+
+        $stockMovement->update([
+            'movement_date' => $data['movement_date'],
+            'notes' => $data['notes'] ?? null,
+        ]);
+
+        return back()->with('success', 'Mutasi stok berhasil diperbarui.');
+    }
+
+    public function destroy(StockMovement $stockMovement): RedirectResponse
+    {
+        DB::transaction(function () use ($stockMovement) {
+            $stockItem = StockItem::modelFor($stockMovement->item_type)::query()
+                ->lockForUpdate()
+                ->findOrFail($stockMovement->item_id);
+            $reversedStock = $stockItem->stock - ($stockMovement->stock_after - $stockMovement->stock_before);
+
+            if ($reversedStock < 0) {
+                throw ValidationException::withMessages([
+                    'stock' => 'Mutasi tidak bisa dihapus karena stok item akan menjadi negatif.',
+                ]);
+            }
+
+            $stockItem->update(['stock' => $reversedStock]);
+            $stockMovement->delete();
+        });
+
+        return back()->with('success', 'Mutasi stok dihapus dan stok dikembalikan.');
     }
 }

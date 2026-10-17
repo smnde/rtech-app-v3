@@ -13,6 +13,9 @@ use App\Models\Purchase;
 use App\Models\PurchaseDetail;
 use App\Models\Supplier;
 use App\Support\StockItem;
+use App\Support\StockMovementRecorder;
+use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -26,7 +29,7 @@ class PurchasesController extends Controller
             ->with(['supplier:id,name', 'customer:id,name'])
             ->when($request->search, fn ($query, $search) => $query->where('invoice', 'like', "%{$search}%"))
             ->when($request->filled('status'), fn ($query) => $query->where('payment_status', $request->string('status')))
-            ->when($request->filled('po_type'), fn ($query) => $query->where('po_type', $request->string('po_type')))
+            ->when($request->filled('order_status'), fn ($query) => $query->where('status', $request->string('order_status')))
             ->when($request->filled('from'), fn ($query) => $query->whereDate('created_at', '>=', $request->string('from')))
             ->when($request->filled('to'), fn ($query) => $query->whereDate('created_at', '<=', $request->string('to')))
             ->latest()
@@ -38,7 +41,7 @@ class PurchasesController extends Controller
             'filters' => [
                 'search' => $request->search,
                 'status' => $request->status,
-                'po_type' => $request->po_type,
+                'order_status' => $request->order_status,
                 'from' => $request->from,
                 'to' => $request->to,
             ],
@@ -58,12 +61,52 @@ class PurchasesController extends Controller
 
         return inertia('Transaksi/PembelianCreate', [
             'products' => $this->purchasableProducts(),
-            'suppliers' => Supplier::query()->orderBy('name')->get(['id', 'name', 'phone']),
+            'suppliers' => Supplier::query()->orderBy('name')->get(['id', 'name', 'name as label', 'phone']),
             'customers' => Customer::query()->orderBy('name')->get(['id', 'name', 'phone', 'is_member']),
             'brands' => Brand::query()->orderBy('name')->get(['id', 'name as label']),
             'categories' => Category::query()->orderBy('name')->get(['id', 'name as label']),
             'cart' => new CartResource($cart),
             'heldCarts' => CartResource::collection($heldCarts),
+        ]);
+    }
+
+    public function show(Purchase $purchase): Response
+    {
+        $purchase->load(['user:id,name', 'supplier:id,name,phone', 'customer:id,name,phone', 'details.item']);
+
+        return inertia('Transaksi/PembelianDetail', [
+            'purchase' => [
+                'invoice' => $purchase->invoice,
+                'date' => $purchase->created_at->toDateTimeString(),
+                'cashier' => $purchase->user?->name,
+                'supplier' => $purchase->supplier ? [
+                    'id' => $purchase->supplier->id,
+                    'name' => $purchase->supplier->name,
+                    'phone' => $purchase->supplier->phone,
+                ] : null,
+                'customer' => $purchase->customer ? [
+                    'id' => $purchase->customer->id,
+                    'name' => $purchase->customer->name,
+                    'phone' => $purchase->customer->phone,
+                ] : null,
+                'buy_from_reference' => $purchase->buy_from_reference,
+                'status' => $purchase->status,
+                'payment_status' => $purchase->payment_status,
+                'total' => (float) $purchase->total,
+                'paid_at' => $purchase->paid_at?->toDateTimeString(),
+                'notes' => $purchase->notes,
+                'items' => $purchase->details->map(fn ($detail) => [
+                    'item_name' => $detail->item?->name,
+                    'item_code' => $detail->item?->sku,
+                    'qty' => $detail->qty,
+                    'price' => (float) $detail->buy_price,
+                    'subtotal' => (float) $detail->subtotal,
+                    'specification' => $detail->item?->specification ?: null,
+                    'accessories' => $detail->item?->accessories ?: [],
+                    'features' => $detail->item?->features ?: [],
+                    'serial_number' => $detail->item?->serialnumber,
+                ])->values(),
+            ],
         ]);
     }
 
@@ -95,8 +138,10 @@ class PurchasesController extends Controller
     public function store(StorePurchaseRequest $request): RedirectResponse
     {
         $data = $request->validated();
+        $fromSupplier = filled($data['supplier_id'] ?? null);
+        $status = $fromSupplier ? $data['status'] : 'done';
 
-        DB::transaction(function () use ($data, $request) {
+        DB::transaction(function () use ($data, $request, $status) {
             $subtotal = 0;
             $lines = [];
 
@@ -116,9 +161,8 @@ class PurchasesController extends Controller
                     'qty' => $qty,
                     'buy_price' => $price,
                     'subtotal' => $lineSubtotal,
+                    'stock_item' => $stockItem,
                 ];
-
-                $stockItem->increment('stock', $qty);
             }
 
             $total = $subtotal;
@@ -130,16 +174,22 @@ class PurchasesController extends Controller
                 'buy_from_reference' => $data['buy_from_reference'] ?? null,
                 'total' => $total,
                 'payment_status' => $data['payment_status'],
-                'po_type' => $data['po_type'],
+                'status' => $status,
                 'paid_at' => $data['paid_at'] ?? null,
                 'notes' => $data['notes'] ?? null,
             ]);
 
             foreach ($lines as $line) {
+                unset($line['stock_item']);
+
                 PurchaseDetail::create([
                     'purchase_id' => $purchase->id,
                     ...$line,
                 ]);
+            }
+
+            if ($status === 'done') {
+                $this->applyStockIn($lines, $request->user(), $purchase->invoice);
             }
 
             $activeCart = Cart::activeFor($request->user(), 'purchase');
@@ -148,5 +198,43 @@ class PurchasesController extends Controller
         });
 
         return redirect()->route('transaksi.pembelian')->with('success', 'Pembelian berhasil disimpan.');
+    }
+
+    /**
+     * @param  list<array{stock_item: Model, qty: int}>  $lines
+     */
+    private function applyStockIn(array $lines, Authenticatable $user, string $reference): void
+    {
+        foreach ($lines as $line) {
+            $stockItem = $line['stock_item'];
+            $qty = $line['qty'];
+
+            $stockBefore = $stockItem->stock;
+            $stockItem->increment('stock', $qty);
+
+            StockMovementRecorder::record($stockItem, 'in', $qty, $stockBefore, 'PEMBELIAN', $user, $reference);
+        }
+    }
+
+    public function markDone(Purchase $purchase, Request $request): RedirectResponse
+    {
+        abort_unless($purchase->supplier_id, 404);
+
+        if ($purchase->status !== 'done') {
+            DB::transaction(function () use ($purchase, $request) {
+                $purchase->update(['status' => 'done']);
+
+                $this->applyStockIn(
+                    $purchase->details->map(fn ($detail) => [
+                        'stock_item' => $detail->item,
+                        'qty' => (int) $detail->qty,
+                    ])->all(),
+                    $request->user(),
+                    $purchase->invoice,
+                );
+            });
+        }
+
+        return redirect()->route('transaksi.pembelian.show', $purchase)->with('success', 'Pembelian ditandai selesai.');
     }
 }

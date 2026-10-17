@@ -54,16 +54,32 @@ const STATUS_COLOR = {
 };
 
 
-const FLAG_LABELS = { HW: 'Hardware', SW: 'Software', MB: 'Mainboard' };
-const flagOptions = Object.entries(FLAG_LABELS).map(([id, label]) => ({ id, label }));
+const flagOptions = [
+    { id: 'HW', label: 'HW' },
+    { id: 'SW', label: 'SW' },
+    { id: 'MB', label: 'MB' },
+];
 
 const deadlineFor = (item) => (['RECEIVED', 'CHECKED'].includes(item.status)
     ? { label: 'Deadline cek', value: item.check_deadline_at }
     : { label: 'Deadline proses', value: item.process_deadline_at });
 
 const formatDeadline = (value) => (value
-    ? new Date(value.replace(' ', 'T')).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    ? new Date(value.replace(' ', 'T')).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
     : '—');
+
+const deadlineColor = (value) => {
+    if (!value) return 'gray';
+    const target = new Date(value.replace(' ', 'T'));
+    target.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diff = (target - today) / 86400000;
+    if (diff < 0) return 'red';
+    if (diff === 0) return 'yellow';
+    if (diff === 1) return 'orange';
+    return 'green';
+};
 
 const statusOptions = computed(() => props.statuses.map((status) => ({ id: status, label: status })));
 const statusFilterOptions = computed(() => [{ id: '', label: 'Semua status' }, ...statusOptions.value]);
@@ -287,12 +303,13 @@ const cardClass = 'rounded-xl border border-gray-200 dark:border-gray-800 bg-whi
                         <td class="px-5 py-3 text-sm text-gray-700 dark:text-gray-300">{{ item.item_name }}</td>
                         <td class="px-5 py-3">
                             <div class="flex flex-wrap gap-1">
-                                <AppBadge v-for="flag in item.flag" :key="flag" color="blue" size="sm">{{ FLAG_LABELS[flag] ?? flag }}</AppBadge>
+                                <AppBadge v-for="flag in item.flag" :key="flag" color="blue" size="sm">{{ flag }}</AppBadge>
                             </div>
                         </td>
-                        <td class="px-5 py-3 text-sm text-gray-600 dark:text-gray-400">
-                            <span class="text-xs text-gray-500">{{ deadlineFor(item).label }}</span>
-                            <p>{{ formatDeadline(deadlineFor(item).value) }}</p>
+                        <td class="px-5 py-3">
+                            <AppBadge :color="deadlineColor(deadlineFor(item).value)" size="sm">
+                                {{ formatDeadline(deadlineFor(item).value) }}
+                            </AppBadge>
                         </td>
                         <td class="px-5 py-3">
                             <AppBadge :color="STATUS_COLOR[item.status] ?? 'gray'" size="sm">{{ item.status }}</AppBadge>
@@ -342,9 +359,16 @@ const cardClass = 'rounded-xl border border-gray-200 dark:border-gray-800 bg-whi
                     </div>
                     <p class="mt-1 text-xs text-gray-500">{{ item.invoice ?? '—' }} · {{ item.customer_name }} · {{ item.created_at }}</p>
                     <div class="mt-2 flex flex-wrap gap-1">
-                        <AppBadge v-for="flag in item.flag" :key="flag" color="blue" size="sm">{{ FLAG_LABELS[flag] ?? flag }}</AppBadge>
+                        <AppBadge v-for="flag in item.flag" :key="flag" color="blue" size="sm">{{ flag }}</AppBadge>
                     </div>
-                    <p class="mt-1 text-xs text-gray-500">Estimasi: {{ item.estimated_cost || '—' }} · {{ deadlineFor(item).label }} {{ formatDeadline(deadlineFor(item).value) }}</p>
+                    <p class="mt-1 text-xs text-gray-500">
+                        {{ (item.stages ?? []).flatMap((s) => s.items ?? []).map((i) => `${i.label}: ${i.cost}`).join(' · ') || 'Estimasi: —' }}
+                    </p>
+                    <div class="mt-2 flex flex-wrap items-center gap-2">
+                        <AppBadge :color="deadlineColor(deadlineFor(item).value)" size="sm">
+                            {{ formatDeadline(deadlineFor(item).value) }}
+                        </AppBadge>
+                    </div>
                     <div class="mt-3 flex items-center justify-end gap-1 pt-3 border-t border-gray-100 dark:border-gray-800" @click.stop.prevent>
                         <AppButton v-if="can('edit reparation') && item.status !== 'TAKEN' && item.status !== 'CANCEL'" variant="ghost" size="sm" icon-only title="Konfirmasi" @click="openConfirm(item)">
                             <CheckCircle2 class="h-4 w-4" />

@@ -108,6 +108,12 @@ const brandColor = (idx) => brandBgColors[idx % brandBgColors.length];
         <div class="flex h-full flex-col">
 
             <AppPageHeader title="Brand" description="Kelola brand / merek produk yang terdaftar." class="shrink-0">
+                <template #actions>
+                    <AppButton v-if="can('add brand')" variant="primary" size="md" class="hidden w-full sm:flex sm:w-auto" @click="openCreate">
+                        <Plus class="h-4 w-4" />
+                        Tambah Brand
+                    </AppButton>
+                </template>
                 <template #search>
                     <div class="relative">
                         <Search class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />

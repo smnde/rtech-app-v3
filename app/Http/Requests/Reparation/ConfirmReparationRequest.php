@@ -18,7 +18,11 @@ class ConfirmReparationRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'estimated_cost' => ['required', 'string', 'max:100'],
+            'stage_id' => ['required', 'integer', 'exists:reparation_stages,id'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.label' => ['required', 'string', 'max:255'],
+            'items.*.cost' => ['required', 'string', 'max:100'],
+            'items.*.est_days' => ['nullable', 'date'],
             'process_deadline_at' => ['required', 'date'],
         ];
     }

@@ -97,6 +97,12 @@ const handleDelete = async (cat) => {
         <div class="flex h-full flex-col">
 
             <AppPageHeader title="Kategori" description="Kelola kategori produk yang tersedia di sistem." class="shrink-0">
+                <template #actions>
+                    <AppButton v-if="can('add category')" variant="primary" size="md" class="hidden w-full sm:flex sm:w-auto" @click="openCreate">
+                        <Plus class="h-4 w-4" />
+                        Tambah Kategori
+                    </AppButton>
+                </template>
                 <template #search>
                     <div class="relative">
                         <Search class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />

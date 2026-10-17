@@ -41,16 +41,17 @@ const statusOptions = [
     { id: 'hutang', label: 'Hutang' },
 ];
 
-const poTypeOptions = [
-    { id: '', label: 'Semua jenis' },
-    { id: 'po', label: 'PO' },
-    { id: 'non_po', label: 'Non-PO' },
+const orderStatusOptions = [
+    { id: '', label: 'Semua progres' },
+    { id: 'ordered', label: 'Ordered' },
+    { id: 'pending', label: 'Pending' },
+    { id: 'done',    label: 'Done' },
 ];
 
 const filterForm = reactive({
     search: props.filters.search ?? '',
     status: props.filters.status ?? '',
-    poType: props.filters.po_type ?? '',
+    orderStatus: props.filters.order_status ?? '',
     range: {
         from: props.filters.from ?? '',
         to: props.filters.to ?? '',
@@ -58,14 +59,14 @@ const filterForm = reactive({
 });
 
 const hasActiveFilter = computed(() =>
-    filterForm.status !== '' || filterForm.poType !== '' || filterForm.range.from !== '' || filterForm.range.to !== '',
+    filterForm.status !== '' || filterForm.orderStatus !== '' || filterForm.range.from !== '' || filterForm.range.to !== '',
 );
 
 const applyFilter = () => {
     router.get(route('transaksi.pembelian'), {
         search: filterForm.search || undefined,
         status: filterForm.status || undefined,
-        po_type: filterForm.poType || undefined,
+        order_status: filterForm.orderStatus || undefined,
         from: filterForm.range.from || undefined,
         to: filterForm.range.to || undefined,
     }, {
@@ -83,12 +84,12 @@ watch(() => filterForm.search, () => {
 });
 
 watch(() => filterForm.status, applyFilter);
-watch(() => filterForm.poType, applyFilter);
+watch(() => filterForm.orderStatus, applyFilter);
 watch(() => filterForm.range, applyFilter, { deep: true });
 
 const resetFilter = () => {
     filterForm.status = '';
-    filterForm.poType = '';
+    filterForm.orderStatus = '';
     filterForm.range = { from: '', to: '' };
 };
 
@@ -96,14 +97,16 @@ const formatRupiah = (value) => `Rp ${Number(value ?? 0).toLocaleString('id-ID')
 
 const statusColor = { lunas: 'green', hutang: 'yellow' };
 
-const poTypeLabel = { po: 'PO', non_po: 'Non-PO' };
+const orderStatusColor = { ordered: 'blue', pending: 'yellow', done: 'green' };
+
+const orderStatusLabel = { ordered: 'Ordered', pending: 'Pending', done: 'Done' };
 
 const columns = [
     { key: 'no', label: '#' },
     { key: 'invoice', label: 'No. Invoice' },
     { key: 'date', label: 'Tanggal' },
     { key: 'source_name', label: 'Supplier / Customer' },
-    { key: 'po_type', label: 'Jenis' },
+    { key: 'order_status', label: 'Progres' },
     { key: 'total', label: 'Total' },
     { key: 'status', label: 'Status' },
 ];
@@ -144,8 +147,8 @@ const columns = [
                                     <AppDropdown v-model="filterForm.status" :options="statusOptions" placeholder="Semua status" />
                                 </div>
                                 <div>
-                                    <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Jenis</label>
-                                    <AppDropdown v-model="filterForm.poType" :options="poTypeOptions" placeholder="Semua jenis" />
+                                    <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Progres</label>
+                                    <AppDropdown v-model="filterForm.orderStatus" :options="orderStatusOptions" placeholder="Semua progres" />
                                 </div>
                                 <div>
                                     <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Rentang Tanggal</label>
@@ -171,7 +174,7 @@ const columns = [
                     <AppDropdown v-model="filterForm.status" :options="statusOptions" placeholder="Semua status" />
                 </div>
                 <div class="w-full sm:w-44">
-                    <AppDropdown v-model="filterForm.poType" :options="poTypeOptions" placeholder="Semua jenis" />
+                    <AppDropdown v-model="filterForm.orderStatus" :options="orderStatusOptions" placeholder="Semua progres" />
                 </div>
                 <div class="w-full sm:w-72">
                     <AppDateRangePicker v-model="filterForm.range" />
@@ -194,15 +197,16 @@ const columns = [
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
                     <tr v-for="(row, i) in rows" :key="row.id"
-                        class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                        class="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                        @click="router.visit(row.show_url)">
                         <td class="px-5 py-3 text-sm text-gray-400">{{ i + 1 }}</td>
                         <td class="px-5 py-3">
-                            <span class="font-mono text-sm font-medium text-gray-900 dark:text-white">{{ row.invoice }}</span>
+                            <Link :href="row.show_url" class="font-mono text-sm font-medium text-primary-700 hover:underline dark:text-primary-400" @click.stop>{{ row.invoice }}</Link>
                         </td>
                         <td class="px-5 py-3 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ row.date }}</td>
                         <td class="px-5 py-3 text-sm text-gray-700 dark:text-gray-300">{{ row.source_name ?? '—' }}</td>
                         <td class="px-5 py-3">
-                            <AppBadge color="gray" size="sm">{{ poTypeLabel[row.po_type] ?? row.po_type }}</AppBadge>
+                            <AppBadge :color="orderStatusColor[row.status] ?? 'gray'" size="sm">{{ orderStatusLabel[row.status] ?? row.status }}</AppBadge>
                         </td>
                         <td class="px-5 py-3 text-sm font-semibold text-gray-900 dark:text-white whitespace-nowrap">{{ formatRupiah(row.total) }}</td>
                         <td class="px-5 py-3">
@@ -225,10 +229,11 @@ const columns = [
                     <p class="text-sm text-gray-500 dark:text-gray-400">Tidak ada pembelian ditemukan.</p>
                 </div>
 
-                <div
+                <Link
                     v-for="row in rows"
                     :key="row.id"
-                    class="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 shadow-sm"
+                    :href="row.show_url"
+                    class="block rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 shadow-sm transition-colors active:bg-gray-50 dark:active:bg-gray-800/50"
                 >
                     <div class="flex items-start justify-between gap-3">
                         <div class="min-w-0">
@@ -236,7 +241,7 @@ const columns = [
                             <p class="mt-0.5 text-xs text-gray-400">{{ row.date }}</p>
                         </div>
                         <div class="flex items-center gap-1.5">
-                            <AppBadge color="gray" size="sm">{{ poTypeLabel[row.po_type] ?? row.po_type }}</AppBadge>
+                            <AppBadge :color="orderStatusColor[row.status] ?? 'gray'" size="sm">{{ orderStatusLabel[row.status] ?? row.status }}</AppBadge>
                             <AppBadge :color="statusColor[row.payment_status] ?? 'gray'" size="sm" dot>{{ row.payment_status }}</AppBadge>
                         </div>
                     </div>
@@ -251,7 +256,7 @@ const columns = [
                             <dd class="font-semibold text-gray-900 dark:text-white">{{ formatRupiah(row.total) }}</dd>
                         </div>
                     </dl>
-                </div>
+                </Link>
             </div>
 
             <div v-if="purchases.total > 0" class="mt-4 sm:hidden">

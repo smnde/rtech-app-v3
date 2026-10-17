@@ -15,7 +15,6 @@ use Illuminate\Database\Eloquent\Model;
     'accessories',
     'complaint',
     'condition',
-    'estimated_cost',
     'check_deadline_at',
     'process_deadline_at',
     'status',
@@ -68,5 +67,10 @@ class Reparation extends Model
     public function logs()
     {
         return $this->hasMany(ReparationLog::class);
+    }
+
+    public function stages()
+    {
+        return $this->hasMany(ReparationStage::class)->orderBy('sequence');
     }
 }

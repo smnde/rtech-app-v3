@@ -2,7 +2,7 @@
 import { usePermission } from '@/composables/usePermission';
 import { ref, computed, watch } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Plus, Search, X, Pencil, Trash2, Smartphone } from 'lucide-vue-next';
+import { Plus, Search, X, Pencil, Trash2, Smartphone, Printer } from 'lucide-vue-next';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import AppPageHeader from '@/Components/UI/AppPageHeader.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
@@ -17,6 +17,7 @@ import { useStockFilter } from '@/composables/useStockFilter';
 import AppSortToggle from '@/Components/UI/AppSortToggle.vue';
 import AppFilterModal from '@/Components/UI/AppFilterModal.vue';
 import { useConfirm } from '@/composables/useConfirm';
+import { useItemPriceTag } from '@/composables/useItemPriceTag';
 
 const { can } = usePermission();
 
@@ -75,6 +76,13 @@ const handleSubmit = (payload) => {
     }
 };
 
+const { addItemToPriceTag } = useItemPriceTag();
+
+const printPriceTag = (item) => {
+    addItemToPriceTag(item);
+    toast.success(`${item.name} ditambahkan ke Price Tag.`);
+};
+
 const handleDelete = async (item) => {
     const ok = await confirm.confirm({
         title: 'Hapus gadget?',
@@ -88,11 +96,6 @@ const handleDelete = async (item) => {
 const formatRupiah = (value) =>
     value == null || value === '' ? '—' : `Rp ${Number(value).toLocaleString('id-ID')}`;
 
-const stockBadge = (qty) => {
-    if (qty === 0) return { color: 'red', label: 'Habis' };
-    if (qty < 5)   return { color: 'yellow', label: 'Kritis' };
-    return { color: 'green', label: 'Tersedia' };
-};
 </script>
 
 <template>
@@ -191,17 +194,13 @@ const stockBadge = (qty) => {
                         </td>
                         <td class="px-5 py-3 text-sm text-gray-600 dark:text-gray-300">{{ item.brand_name ?? '—' }}</td>
                         <td class="px-5 py-3 text-sm font-mono text-gray-500 dark:text-gray-400">{{ item.sku }}</td>
-                        <td class="px-5 py-3">
-                            <div class="flex items-center gap-2">
-                                <span class="font-semibold text-gray-900 dark:text-white">{{ item.stock }}</span>
-                                <AppBadge :color="stockBadge(item.stock).color" size="sm" dot>
-                                    {{ stockBadge(item.stock).label }}
-                                </AppBadge>
-                            </div>
-                        </td>
+                        <td class="px-5 py-3 text-sm font-semibold text-gray-900 dark:text-white">{{ item.stock }}</td>
                         <td class="px-5 py-3 text-sm font-medium text-gray-900 dark:text-white">{{ formatRupiah(item.sell_price) }}</td>
                         <td class="px-5 py-3">
                             <div class="flex items-center gap-1">
+                                <AppButton variant="ghost" size="sm" icon-only title="Print Price Tag" @click="printPriceTag(item)">
+                                    <Printer class="h-4 w-4" />
+                                </AppButton>
                                 <AppButton v-if="can('edit gadget')" variant="ghost" size="sm" icon-only title="Edit" @click="openEdit(item)">
                                     <Pencil class="h-4 w-4" />
                                 </AppButton>

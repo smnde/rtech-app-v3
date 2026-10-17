@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\Reparation\AddStageRequest;
 use App\Http\Requests\Reparation\ChangeReparationStatusRequest;
 use App\Http\Requests\Reparation\ConfirmReparationRequest;
 use App\Http\Requests\Reparation\StoreReparationRequest;
@@ -10,6 +11,7 @@ use App\Http\Resources\ReparationsResource;
 use App\Models\Customer;
 use App\Models\Reparation;
 use App\Models\ReparationLog;
+use App\Models\ReparationStage;
 use App\Support\ReparationTracker;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
@@ -52,8 +54,10 @@ class ReparationsController extends Controller
 
     public function store(StoreReparationRequest $request, ReparationTracker $tracker): RedirectResponse
     {
+        $data = $this->withTextDefaults($request->validated());
+
         $reparation = Reparation::create([
-            ...$this->withTextDefaults($request->validated()),
+            ...$data,
             'user_id' => $request->user()->id,
             'status' => 'RECEIVED',
         ]);
@@ -65,7 +69,7 @@ class ReparationsController extends Controller
 
     public function show(Reparation $reparation): Response
     {
-        $reparation->load(['customer:id,name,phone', 'logs.user:id,name']);
+        $reparation->load(['customer:id,name,phone', 'stages.items', 'logs.user:id,name']);
 
         return inertia('Servis/Detail', [
             'reparation' => (new ReparationsResource($reparation))->resolve(),
@@ -87,33 +91,62 @@ class ReparationsController extends Controller
         return back()->with('success', 'Servis berhasil diperbarui.');
     }
 
+    public function addStage(AddStageRequest $request, Reparation $reparation, ReparationTracker $tracker): RedirectResponse
+    {
+        $data = $request->validated();
+        $lastStage = $reparation->stages()->latest('sequence')->first();
+        $nextSequence = $lastStage?->sequence + 1 ?? 1;
+
+        $stage = ReparationStage::create([
+            'reparation_id' => $reparation->id,
+            'sequence' => $nextSequence,
+            'status' => 'PENDING',
+        ]);
+
+        foreach ($data['items'] as $item) {
+            $stage->items()->create([
+                'label' => $item['label'],
+                'cost' => $item['cost'],
+                'est_days' => $item['est_days'] ?? null,
+            ]);
+        }
+
+        return back()->with('success', "Tahap {$nextSequence} ditambahkan.");
+    }
+
     public function confirm(ConfirmReparationRequest $request, Reparation $reparation, ReparationTracker $tracker): RedirectResponse
     {
         $data = $request->validated();
         $data['process_deadline_at'] = Carbon::parse($data['process_deadline_at']);
-        $previousStatus = $reparation->status;
-        $previousEstimate = $reparation->estimated_cost;
-        $previousDeadline = $reparation->process_deadline_at?->format('Y-m-d H:i');
 
-        DB::transaction(function () use ($reparation, $data, $request, $tracker, $previousStatus, $previousEstimate, $previousDeadline) {
+        DB::transaction(function () use ($reparation, $data, $request, $tracker) {
+            $stage = ReparationStage::find($data['stage_id']);
+
+            $stage->items()->delete();
+            foreach ($data['items'] as $item) {
+                $stage->items()->create([
+                    'label' => $item['label'],
+                    'cost' => $item['cost'],
+                    'est_days' => $item['est_days'] ?? null,
+                ]);
+            }
+            $stage->update([
+                'status' => 'CONFIRMED',
+                'confirmed_at' => now(),
+            ]);
+
             $reparation->update([
-                'estimated_cost' => $data['estimated_cost'],
                 'process_deadline_at' => $data['process_deadline_at'],
                 'status' => 'WAITING CONFIRMATION',
             ]);
 
-            if ($previousEstimate !== $data['estimated_cost']) {
-                $tracker->record($reparation, $request->user(), ReparationLog::EVENT_ESTIMATE_CHANGED, from: $previousEstimate, to: $data['estimated_cost']);
-            }
-
-            $newDeadline = $data['process_deadline_at']->format('Y-m-d H:i');
-            if ($previousDeadline !== $newDeadline) {
-                $tracker->record($reparation, $request->user(), ReparationLog::EVENT_DEADLINE_CHANGED, from: $previousDeadline, to: $newDeadline);
-            }
-
-            if ($previousStatus !== 'WAITING CONFIRMATION') {
-                $tracker->record($reparation, $request->user(), ReparationLog::EVENT_STATUS_CHANGED, from: $previousStatus, to: 'WAITING CONFIRMATION');
-            }
+            $tracker->record(
+                $reparation,
+                $request->user(),
+                ReparationLog::EVENT_STATUS_CHANGED,
+                from: $reparation->status,
+                to: 'WAITING CONFIRMATION'
+            );
         });
 
         return back()->with('success', 'Servis dikonfirmasi, menunggu konfirmasi customer.');

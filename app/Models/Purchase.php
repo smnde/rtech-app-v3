@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Model;
     'invoice',
     'total',
     'payment_status',
-    'po_type',
+    'status',
     'paid_at',
     'notes',
 ])]

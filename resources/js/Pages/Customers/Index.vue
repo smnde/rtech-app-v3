@@ -2,7 +2,7 @@
 import { usePermission } from '@/composables/usePermission';
 import { ref, computed, reactive, watch } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Plus, Search, Pencil, Trash2, Phone, UserCheck, X } from 'lucide-vue-next';
+import { Plus, Search, Pencil, Trash2, Phone, UserCheck, X, MessageCircle } from 'lucide-vue-next';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import AppPageHeader from '@/Components/UI/AppPageHeader.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
@@ -14,6 +14,7 @@ import AppFilterModal from '@/Components/UI/AppFilterModal.vue';
 import CustomerFormModal from '@/Components/Customers/CustomerFormModal.vue';
 import { useToast } from '@/composables/useToast';
 import { useConfirm } from '@/composables/useConfirm';
+import { waLink } from '@/lib/whatsapp';
 
 const { can } = usePermission();
 
@@ -194,6 +195,13 @@ const handleDelete = async (item) => {
                         </td>
                         <td class="px-5 py-3">
                             <div class="flex items-center gap-1">
+                                <a v-if="waLink(item.phone)"
+                                    :href="waLink(item.phone)"
+                                    target="_blank" rel="noopener"
+                                    title="Chat WhatsApp"
+                                    class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-green-600 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-green-400">
+                                    <MessageCircle class="h-4 w-4" />
+                                </a>
                                 <AppButton v-if="can('edit customer')" variant="ghost" size="sm" icon-only title="Edit" @click="openEdit(item)">
                                     <Pencil class="h-4 w-4" />
                                 </AppButton>
@@ -231,9 +239,19 @@ const handleDelete = async (item) => {
                         <p class="truncate text-sm font-medium text-gray-900 dark:text-white">{{ item.name }}</p>
                         <p class="truncate text-xs text-gray-500 dark:text-gray-400">{{ item.phone }}</p>
                     </div>
-                    <AppBadge :color="item.is_member ? 'purple' : 'gray'" size="sm" class="shrink-0">
-                        {{ item.is_member ? 'Member' : 'Non-member' }}
-                    </AppBadge>
+                    <div class="flex shrink-0 items-center gap-2">
+                        <a v-if="waLink(item.phone)"
+                            :href="waLink(item.phone)"
+                            target="_blank" rel="noopener"
+                            title="Chat WhatsApp"
+                            class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-green-600 transition-colors hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-500/10"
+                            @click.stop>
+                            <MessageCircle class="h-4 w-4" />
+                        </a>
+                        <AppBadge :color="item.is_member ? 'purple' : 'gray'" size="sm">
+                            {{ item.is_member ? 'Member' : 'Non-member' }}
+                        </AppBadge>
+                    </div>
                 </Link>
             </div>
 

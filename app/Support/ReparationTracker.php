@@ -39,12 +39,25 @@ class ReparationTracker
     private function describe(string $event, ?string $from, ?string $to, ?string $note): string
     {
         return match ($event) {
-            ReparationLog::EVENT_RECEIVED => 'Servis diterima dengan status RECEIVED.',
-            ReparationLog::EVENT_STATUS_CHANGED => "Status berubah dari {$from} ke {$to}.",
-            ReparationLog::EVENT_DEADLINE_CHANGED => "Deadline diubah: {$to}.",
-            ReparationLog::EVENT_ESTIMATE_CHANGED => "Estimasi biaya diubah dari {$from} ke {$to}.",
-            ReparationLog::EVENT_MESSAGE_SENT => 'Pesan dikirim ke customer.'.($note ? " {$note}" : ''),
+            ReparationLog::EVENT_RECEIVED => 'RECEIVED. Servis diterima.',
+            ReparationLog::EVENT_STATUS_CHANGED => $this->describeStatusChange($to, $note),
             default => $note ?? $event,
+        };
+    }
+
+    private function describeStatusChange(?string $to, ?string $note): string
+    {
+        return match ($to) {
+            'RECEIVED' => 'RECEIVED. Servis diterima.',
+            'WAITING CONFIRMATION' => 'WAITING CONFIRMATION. Menunggu konfirmasi dari customer.',
+            'ON PROCESS' => 'ON PROCESS. Dalam tahap pengerjaan.',
+            'PENDING' => $note ? "PENDING. {$note}" : 'PENDING. Servis ditangguhkan.',
+            'DONE' => 'DONE. Selesai, sudah dikonfirmasi ke customer.',
+            'CANCEL' => $note ? "CANCEL. Dibatalkan, {$note}" : 'CANCEL. Dibatalkan.',
+            'CHECKED' => 'CHECKED. Servis dicek teknisi.',
+            'CONFIRMED' => 'CONFIRMED. Servis dikonfirmasi.',
+            'TAKEN' => 'TAKEN. Unit diambil customer.',
+            default => "{$to}. Status berubah.",
         };
     }
 }

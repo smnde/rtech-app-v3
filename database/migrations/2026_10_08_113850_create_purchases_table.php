@@ -32,7 +32,7 @@ return new class extends Migration
             $table->string('invoice')->unique();
             $table->decimal('total', 15, 2)->default(0);
             $table->enum('payment_status', ['lunas', 'hutang'])->default('lunas');
-            $table->enum('po_type', ['po', 'non_po'])->default('non_po');
+            $table->enum('status', ['ordered', 'pending', 'done'])->default('done')->after('payment_status');
             $table->timestamp('paid_at')->nullable();
             $table->text('notes')->nullable();
             $table->timestamps();

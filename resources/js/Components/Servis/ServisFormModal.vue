@@ -27,7 +27,6 @@ const emptyForm = () => ({
     complaint: [],
     condition: [],
     accessories: [],
-    estimated_cost: '',
     check_deadline_at: '',
     process_deadline_at: '',
     status: 'RECEIVED',
@@ -97,7 +96,6 @@ watch(
                 complaint: [...(props.item.complaint ?? [])],
                 condition: [...(props.item.condition ?? [])],
                 accessories: [...(props.item.accessories ?? [])],
-                estimated_cost: props.item.estimated_cost ?? '',
                 check_deadline_at: props.item.check_deadline_at ?? '',
                 process_deadline_at: props.item.process_deadline_at ?? '',
                 status: props.item.status,
@@ -121,7 +119,6 @@ const validate = () => {
     if (!String(form.value.item_name).trim()) e.item_name = 'Nama laptop wajib diisi.';
     if (form.value.flag.length === 0) e.flag = 'Pilih minimal satu jenis kerusakan.';
     if (form.value.complaint.length === 0) e.complaint = 'Isi minimal satu keluhan atau kendala.';
-    if (!String(form.value.estimated_cost).trim()) e.estimated_cost = 'Estimasi biaya wajib diisi.';
     errors.value = e;
     return Object.keys(e).length === 0;
 };
@@ -136,7 +133,6 @@ const handleSubmit = () => {
         complaint: form.value.complaint,
         condition: form.value.condition,
         accessories: form.value.accessories,
-        estimated_cost: String(form.value.estimated_cost).trim(),
         check_deadline_at: form.value.check_deadline_at || null,
         process_deadline_at: form.value.process_deadline_at || null,
         status: form.value.status,
@@ -207,7 +203,7 @@ const labelClass = 'block text-sm font-medium text-gray-700 dark:text-gray-300 m
 
                         <button v-if="hasNoCustomerMatch" type="button"
                             @mousedown.prevent @click="openCustomerModal"
-                            class="flex w-full items-center gap-2 border-t border-gray-100 dark:border-gray-700 px-3 py-2.5 text-left text-primary-600 dark:text-primary-400 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors">
+                            class="flex w-full items-center gap-2 border-t border-gray-100 dark:border-gray-700 px-3 py-2.5 text-left text-primary-600 dark:text-primary-400 hover:bg-gray-50 dark:hover:bg-gray-50/50 transition-colors">
                             <UserPlus class="h-4 w-4 shrink-0" />
                             <span class="text-sm">Tambah customer baru: "<span class="font-medium">{{ customerSearch.trim() }}</span>"</span>
                         </button>
@@ -250,19 +246,14 @@ const labelClass = 'block text-sm font-medium text-gray-700 dark:text-gray-300 m
                 <AppTagInput v-model="form.accessories" placeholder="Contoh: Charger, Tas (Enter untuk menambah)" />
             </div>
 
-            <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <div>
-                    <label :class="labelClass">Estimasi biaya</label>
-                    <input v-model="form.estimated_cost" type="text" placeholder="Contoh: 400-500rb" :class="inputClass(!!errors.estimated_cost)" />
-                    <p v-if="errors.estimated_cost" class="mt-1.5 text-xs text-red-500">{{ errors.estimated_cost }}</p>
-                </div>
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                     <label :class="labelClass">Deadline cek</label>
-                    <AppDatePicker v-model="form.check_deadline_at" with-time placeholder="Pilih tanggal & jam" />
+                    <AppDatePicker v-model="form.check_deadline_at" placeholder="Pilih tanggal" />
                 </div>
                 <div>
                     <label :class="labelClass">Deadline proses</label>
-                    <AppDatePicker v-model="form.process_deadline_at" with-time placeholder="Pilih tanggal & jam" />
+                    <AppDatePicker v-model="form.process_deadline_at" placeholder="Pilih tanggal" />
                 </div>
             </div>
 

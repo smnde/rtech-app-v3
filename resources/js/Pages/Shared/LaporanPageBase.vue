@@ -1,7 +1,8 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { Head, router } from '@inertiajs/vue3';
-import { Download } from 'lucide-vue-next';
+import { Download, FileDown } from 'lucide-vue-next';
+import { jsPDF } from 'jspdf';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import AppPageHeader from '@/Components/UI/AppPageHeader.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
@@ -18,6 +19,7 @@ const props = defineProps({
     stats:       { type: Array, default: () => [] },
     routeName:   { type: String, required: true },
     filters:     { type: Object, default: () => ({}) },
+    exportPdf:   { type: Boolean, default: false },
 });
 
 const period = ref({ from: props.filters.from ?? '', to: props.filters.to ?? '' });
@@ -34,6 +36,64 @@ const applyPeriod = () => {
         from: period.value.from || undefined,
         to: period.value.to || undefined,
     }, { preserveState: true, preserveScroll: true, replace: true });
+};
+
+const formatRupiah = (v) => `Rp ${Number(v).toLocaleString('id-ID')}`;
+
+const exportToPdf = () => {
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 32;
+    const usable = pageWidth - margin * 2;
+
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text(props.pageTitle, margin, margin);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text(
+        `Periode: ${period.value.from || '-'} s.d. ${period.value.to || '-'}`,
+        margin, margin + 16
+    );
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    const colCount = props.columns.length;
+    const colWidth = usable / colCount;
+    let y = margin + 36;
+
+    props.columns.forEach((col, i) => {
+        const x = margin + i * colWidth;
+        const label = String(col.label).toUpperCase();
+        doc.text(label, x + 4, y);
+    });
+    doc.line(margin, y + 4, margin + usable, y + 4);
+    y += 16;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+
+    props.rows.slice(0, 60).forEach((row) => {
+        props.columns.forEach((col, i) => {
+            const x = margin + i * colWidth;
+            let val = row[col.key];
+            if (col.key === 'subtotal' || col.key === 'total') val = formatRupiah(val);
+            if (val == null || val === '') val = '-';
+            const text = String(val);
+            const truncated = text.length > Math.floor(colWidth / 5.5) ? text.slice(0, Math.floor(colWidth / 5.5)) + '…' : text;
+            doc.text(truncated, x + 4, y);
+        });
+        y += 14;
+    });
+
+    if (props.rows.length > 60) {
+        y += 4;
+        doc.setFont('helvetica', 'italic');
+        doc.text(`(Lanjut ${props.rows.length - 60} baris berikutnya)`, margin, y);
+    }
+
+    doc.save(`${props.routeName.replace(/\./g, '_')}_export.pdf`);
 };
 
 watch(() => props.filters, (value) => {
@@ -55,7 +115,16 @@ watch(() => props.filters, (value) => {
                         <AppDateRangePicker v-model="period" @update:model-value="applyPeriod" />
                     </div>
                 </AppFilterModal>
-                <AppButton variant="outline" size="sm">
+                <AppButton
+                    v-if="exportPdf"
+                    variant="outline"
+                    size="sm"
+                    @click="exportToPdf"
+                >
+                    <FileDown class="h-4 w-4" />
+                    Export PDF
+                </AppButton>
+                <AppButton v-else variant="outline" size="sm">
                     <Download class="h-4 w-4" />
                     Export
                 </AppButton>

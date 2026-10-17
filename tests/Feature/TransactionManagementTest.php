@@ -7,6 +7,7 @@ use App\Models\Laptop;
 use App\Models\Purchase;
 use App\Models\Sale;
 use App\Models\Sparepart;
+use App\Models\StockMovement;
 use App\Models\Supplier;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
@@ -25,28 +26,64 @@ beforeEach(function () {
     ]);
 });
 
-test('sale store decrements stock and records the sale with keep payment', function () {
+test('keep sale does not move stock at store, moves only when lunas', function () {
     $customer = Customer::create(['name' => 'Budi Santoso', 'phone' => '0812', 'is_member' => false]);
 
     $this->actingAs($this->user)->post('/transaksi/penjualan', [
         'customer_id' => $customer->id,
         'payment_status' => 'keep',
+        'payment_method' => 'cash',
         'dp_amount' => 2000000,
-        'paid_at' => '2026-11-01',
+        'paid_at' => now()->toDateString(),
         'items' => [
             ['item_type' => 'laptop', 'item_id' => $this->laptop->id, 'qty' => 1, 'price' => 12000000],
         ],
     ])->assertRedirect(route('transaksi.penjualan'))->assertSessionHas('success');
 
-    expect($this->laptop->fresh()->stock)->toBe(2);
+    // DP keep → stok belum berubah, belum ada mutasi.
+    expect($this->laptop->fresh()->stock)->toBe(3)
+        ->and(StockMovement::count())->toBe(0);
 
     $sale = Sale::with('details')->firstOrFail();
     expect($sale->payment_status)->toBe('keep')
-        ->and((float) $sale->dp_amount)->toBe(2000000.0)
         ->and((float) $sale->total)->toBe(12000000.0)
         ->and($sale->invoice)->toStartWith('INV-')
         ->and($sale->details)->toHaveCount(1)
         ->and($sale->details->first()->item_type)->toBe('laptop');
+
+    // Lunas → mutasi keluar tercatat, stok berkurang.
+    $this->actingAs($this->user)->post(route('transaksi.penjualan.lunas', $sale))
+        ->assertRedirect(route('transaksi.penjualan.show', $sale));
+
+    expect($sale->fresh()->payment_status)->toBe('lunas')
+        ->and($this->laptop->fresh()->stock)->toBe(2);
+
+    $movement = StockMovement::firstOrFail();
+    expect($movement->type)->toBe('out')
+        ->and($movement->quantity)->toBe(1)
+        ->and($movement->reference)->toBe($sale->invoice);
+});
+
+test('hutang sale moves stock at store and lunas does not move twice', function () {
+    $this->actingAs($this->user)->post('/transaksi/penjualan', [
+        'payment_status' => 'hutang',
+        'payment_method' => 'tf',
+        'items' => [
+            ['item_type' => 'laptop', 'item_id' => $this->laptop->id, 'qty' => 1, 'price' => 12000000],
+        ],
+    ])->assertRedirect(route('transaksi.penjualan'))->assertSessionHas('success');
+
+    expect($this->laptop->fresh()->stock)->toBe(2)
+        ->and(StockMovement::count())->toBe(1);
+
+    $sale = Sale::firstOrFail();
+
+    $this->actingAs($this->user)->post(route('transaksi.penjualan.lunas', $sale))
+        ->assertRedirect(route('transaksi.penjualan.show', $sale));
+
+    expect($sale->fresh()->payment_status)->toBe('lunas')
+        ->and($this->laptop->fresh()->stock)->toBe(2)
+        ->and(StockMovement::count())->toBe(1);
 });
 
 test('sale store rolls back everything when one item has insufficient stock', function () {
@@ -65,6 +102,7 @@ test('sale store rolls back everything when one item has insufficient stock', fu
 
     $this->actingAs($this->user)->post('/transaksi/penjualan', [
         'payment_status' => 'lunas',
+        'payment_method' => 'cash',
         'items' => [
             ['item_type' => 'laptop', 'item_id' => $this->laptop->id, 'qty' => 1, 'price' => 12000000],
             ['item_type' => 'sparepart', 'item_id' => $sparepart->id, 'qty' => 5, 'price' => 80000],
@@ -79,30 +117,66 @@ test('sale store rolls back everything when one item has insufficient stock', fu
 test('keep sale requires dp amount and payoff date', function () {
     $this->actingAs($this->user)->post('/transaksi/penjualan', [
         'payment_status' => 'keep',
+        'payment_method' => 'cash',
         'items' => [
             ['item_type' => 'laptop', 'item_id' => $this->laptop->id, 'qty' => 1, 'price' => 12000000],
         ],
     ])->assertSessionHasErrors(['dp_amount', 'paid_at']);
 });
 
-test('purchase store increments stock and records po type with hutang status', function () {
+test('supplier purchase ordered does not move stock until done', function () {
+    $supplier = Supplier::create(['name' => 'PT Sumber', 'phone' => '0215', 'address' => 'Jakarta']);
+
     $this->actingAs($this->user)->post('/transaksi/pembelian', [
+        'supplier_id' => $supplier->id,
         'payment_status' => 'hutang',
-        'po_type' => 'po',
+        'status' => 'ordered',
         'buy_from_reference' => 'NOTA-123',
         'items' => [
             ['item_type' => 'laptop', 'item_id' => $this->laptop->id, 'qty' => 2, 'price' => 10000000],
         ],
     ])->assertRedirect(route('transaksi.pembelian'))->assertSessionHas('success');
 
-    expect($this->laptop->fresh()->stock)->toBe(5);
+    expect($this->laptop->fresh()->stock)->toBe(3)
+        ->and(StockMovement::count())->toBe(0);
 
     $purchase = Purchase::with('details')->firstOrFail();
-    expect($purchase->payment_status)->toBe('hutang')
-        ->and($purchase->po_type)->toBe('po')
+    expect($purchase->status)->toBe('ordered')
+        ->and($purchase->payment_status)->toBe('hutang')
         ->and((float) $purchase->total)->toBe(20000000.0)
         ->and($purchase->invoice)->toStartWith('PRC-')
         ->and($purchase->details)->toHaveCount(1);
+
+    $this->actingAs($this->user)->post(route('transaksi.pembelian.done', $purchase))
+        ->assertRedirect(route('transaksi.pembelian.show', $purchase));
+
+    expect($purchase->fresh()->status)->toBe('done')
+        ->and($this->laptop->fresh()->stock)->toBe(5);
+
+    $movement = StockMovement::firstOrFail();
+    expect($movement->type)->toBe('in')
+        ->and($movement->quantity)->toBe(2)
+        ->and($movement->reference)->toBe($purchase->invoice);
+});
+
+test('non-supplier purchase forces done status and moves stock at store time', function () {
+    $customer = Customer::create(['name' => 'Budi Santoso', 'phone' => '0812', 'is_member' => false]);
+
+    $this->actingAs($this->user)->post('/transaksi/pembelian', [
+        'customer_id' => $customer->id,
+        'payment_status' => 'lunas',
+        'status' => 'pending',
+        'items' => [
+            ['item_type' => 'laptop', 'item_id' => $this->laptop->id, 'qty' => 1, 'price' => 10000000],
+        ],
+    ])->assertRedirect(route('transaksi.pembelian'))->assertSessionHas('success');
+
+    expect($this->laptop->fresh()->stock)->toBe(4);
+
+    $purchase = Purchase::firstOrFail();
+    expect($purchase->status)->toBe('done')
+        ->and(StockMovement::count())->toBe(1)
+        ->and(StockMovement::first()->type)->toBe('in');
 });
 
 test('sale index and create pages render for users with permission', function () {

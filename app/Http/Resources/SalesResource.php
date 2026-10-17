@@ -17,6 +17,8 @@ class SalesResource extends JsonResource
         return [
             'id' => $this->id,
             'invoice' => $this->invoice,
+            'show_url' => route('transaksi.penjualan.show', $this->resource),
+            'print_url' => route('transaksi.penjualan.show', [$this->resource, 'print' => 1]),
             'date' => $this->created_at->toDateString(),
             'customer_name' => $this->customer?->name,
             'total' => (float) $this->total,

@@ -41,14 +41,14 @@ const form = ref({
     buy_from: 'supplier',      // supplier | customer — sumber barang
     supplier_id: '',
     customer_id: '',
-    jenis: 'non_po',           // non_po | po — hanya berarti kalau beli dari supplier
+    trx_status: 'ordered',     // ordered | pending | done — hanya berarti kalau beli dari supplier
     buy_from_reference: '',
     status: 'lunas',           // lunas | hutang
     payment: 'cash',           // cash | tf
     note: '',
 });
 
-/** Beli dari supplier → PO/Non-PO relevan; beli dari customer → tidak. */
+/** Beli dari supplier → status (ordered/pending/done) relevan; beli dari customer → tidak. */
 const buyFromSupplier = computed(() => form.value.buy_from === 'supplier');
 
 // Sumber pembelian — tab di paling atas card checkout.
@@ -179,7 +179,7 @@ const handleSave = () => {
         customer_id: buyFromSupplier.value ? null : (props.cart.customer_id ?? null),
         buy_from_reference: form.value.buy_from_reference || null,
         payment_status: form.value.status,
-        po_type: buyFromSupplier.value ? form.value.jenis : 'non_po',
+        status: buyFromSupplier.value ? form.value.trx_status : 'done',
         paid_at: null,
         notes: form.value.note || null,
         items: items.value.map((l) => ({
@@ -637,21 +637,22 @@ watch(() => page.props.flash?.created_item, (created) => {
                             </div>
                         </div>
 
-                        <!-- Jenis: PO / Non-PO — hanya kalau beli dari supplier -->
+                        <!-- Status: ordered / pending / done — hanya kalau beli dari supplier -->
                         <div v-if="buyFromSupplier">
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Jenis Pembelian</label>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Status Pembelian</label>
                             <div class="inline-flex w-full rounded-lg border border-gray-300 dark:border-gray-700 p-1 bg-gray-50 dark:bg-gray-800/60">
                                 <button
                                     v-for="opt in [
-                                        { key: 'non_po', label: 'Non-PO', icon: ShoppingBag },
-                                        { key: 'po',     label: 'PO',     icon: Truck },
+                                        { key: 'ordered', label: 'Ordered', icon: Clock },
+                                        { key: 'pending', label: 'Pending', icon: Truck },
+                                        { key: 'done',    label: 'Done',    icon: CheckCircle2 },
                                     ]"
                                     :key="opt.key"
                                     type="button"
-                                    @click="form.jenis = opt.key"
+                                    @click="form.trx_status = opt.key"
                                     :class="[
                                         'inline-flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
-                                        form.jenis === opt.key
+                                        form.trx_status === opt.key
                                             ? 'bg-white dark:bg-gray-900 text-primary-700 dark:text-primary-400 shadow-sm'
                                             : 'text-gray-500 dark:text-gray-400',
                                     ]"
@@ -1045,21 +1046,22 @@ watch(() => page.props.flash?.created_item, (created) => {
                         </div>
                     </div>
 
-                    <!-- Jenis (PO/Non-PO) hanya relevan kalau beli dari supplier -->
+                    <!-- Status (ordered/pending/done) hanya relevan kalau beli dari supplier -->
                     <div v-if="buyFromSupplier">
-                        <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">Jenis Pembelian</label>
+                        <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">Status Pembelian</label>
                         <div class="inline-flex w-full rounded-lg border border-gray-300 dark:border-gray-700 p-0.5 bg-gray-50 dark:bg-gray-800/60">
                             <button
                                 v-for="opt in [
-                                    { key: 'non_po', label: 'Non-PO', icon: ShoppingBag },
-                                    { key: 'po',     label: 'PO',     icon: Truck },
+                                    { key: 'ordered', label: 'Ordered', icon: Clock },
+                                    { key: 'pending', label: 'Pending', icon: Truck },
+                                    { key: 'done',    label: 'Done',    icon: CheckCircle2 },
                                 ]"
                                 :key="opt.key"
                                 type="button"
-                                @click="form.jenis = opt.key"
+                                @click="form.trx_status = opt.key"
                                 :class="[
                                     'inline-flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
-                                    form.jenis === opt.key
+                                    form.trx_status === opt.key
                                         ? 'bg-white dark:bg-gray-900 text-primary-700 dark:text-primary-400 shadow-sm'
                                         : 'text-gray-500 dark:text-gray-400',
                                 ]"

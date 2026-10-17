@@ -45,6 +45,7 @@ class CustomersController extends Controller
             ->merge($customer->sales()->latest()->get()->map(fn ($sale) => [
                 'type' => 'Penjualan',
                 'reference' => $sale->invoice,
+                'href' => route('transaksi.penjualan.show', $sale),
                 'total' => (float) $sale->total,
                 'status' => $sale->payment_status,
                 'date' => $sale->created_at->toDateTimeString(),
@@ -52,6 +53,7 @@ class CustomersController extends Controller
             ->merge($customer->purchases()->latest()->get()->map(fn ($purchase) => [
                 'type' => 'Pembelian',
                 'reference' => $purchase->invoice,
+                'href' => route('transaksi.pembelian.show', $purchase),
                 'total' => (float) $purchase->total,
                 'status' => $purchase->payment_status,
                 'date' => $purchase->created_at->toDateTimeString(),

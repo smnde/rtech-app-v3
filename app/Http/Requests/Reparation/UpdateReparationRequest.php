@@ -28,7 +28,6 @@ class UpdateReparationRequest extends FormRequest
             'complaint.*' => ['string', 'max:255'],
             'condition' => ['nullable', 'array'],
             'condition.*' => ['string', 'max:255'],
-            'estimated_cost' => ['required', 'string', 'max:100'],
             'check_deadline_at' => ['nullable', 'date'],
             'process_deadline_at' => ['nullable', 'date', 'after_or_equal:check_deadline_at'],
             'status' => ['required', Rule::in(['RECEIVED', 'CHECKED', 'CONFIRMED', 'WAITING CONFIRMATION', 'ON PROCESS', 'PENDING', 'CANCEL', 'DONE', 'TAKEN'])],

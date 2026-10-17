@@ -7,19 +7,20 @@ const formatSpecification = (specification) => {
     return lines.length ? lines.join('\n') : '-';
 };
 
-export function useLaptopPriceTag() {
+// Laptop & gadget punya field sama (sku, name, sell_price, specification, warranty).
+export function useItemPriceTag() {
     const { add } = usePriceTagBasket('mt_price_tag_basket', 9);
 
-    const addLaptopToPriceTag = (laptop) => {
+    const addItemToPriceTag = (item) => {
         add({
-            id: `laptop-${laptop.id}`,
-            code: laptop.sku,
-            name: laptop.name,
-            price: Number(laptop.sell_price) || 0,
-            description: formatSpecification(laptop.specification),
-            warranty: laptop.warranty,
+            id: String(item.sku ?? item.id),
+            code: item.sku,
+            name: item.name,
+            price: Number(item.sell_price) || 0,
+            description: formatSpecification(item.specification),
+            warranty: item.warranty,
         });
     };
 
-    return { addLaptopToPriceTag };
+    return { addItemToPriceTag };
 }

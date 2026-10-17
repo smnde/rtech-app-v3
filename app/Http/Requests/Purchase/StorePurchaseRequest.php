@@ -24,7 +24,7 @@ class StorePurchaseRequest extends FormRequest
             'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
             'buy_from_reference' => ['nullable', 'string', 'max:255'],
             'payment_status' => ['required', Rule::in(['lunas', 'hutang'])],
-            'po_type' => ['required', Rule::in(['po', 'non_po'])],
+            'status' => ['required', Rule::in(['ordered', 'pending', 'done'])],
             'paid_at' => ['nullable', 'date'],
             'notes' => ['nullable', 'string'],
             'items' => ['required', 'array', 'min:1'],

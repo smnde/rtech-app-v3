@@ -1,7 +1,6 @@
 <script setup>
 import { computed } from 'vue';
-import { Head } from '@inertiajs/vue3';
-import AppBadge from '@/Components/UI/AppBadge.vue';
+import { Head, Link } from '@inertiajs/vue3';
 import LaporanPageBase from '@/Pages/Shared/LaporanPageBase.vue';
 
 const props = defineProps({
@@ -18,15 +17,12 @@ const stats = computed(() => [
 ]);
 
 const columns = [
-    { key: 'invoice',        label: 'No. Invoice' },
-    { key: 'date',           label: 'Tanggal' },
-    { key: 'source',         label: 'Sumber' },
-    { key: 'po_type',        label: 'Jenis' },
-    { key: 'total',          label: 'Total' },
-    { key: 'payment_status', label: 'Status' },
+    { key: 'invoice',   label: 'No. Invoice' },
+    { key: 'date',      label: 'Tanggal' },
+    { key: 'item_name', label: 'Item' },
+    { key: 'qty',       label: 'Qty' },
+    { key: 'subtotal',  label: 'Subtotal' },
 ];
-
-const statusColor = { lunas: 'green', hutang: 'yellow' };
 </script>
 
 <template>
@@ -40,12 +36,16 @@ const statusColor = { lunas: 'green', hutang: 'yellow' };
         :columns="columns"
         :rows="rows"
         :stats="stats"
+        export-pdf
     >
-        <template #cell-total="{ value }">
-            <span class="font-semibold text-gray-900 dark:text-white">{{ formatRupiah(value) }}</span>
+        <template #cell-invoice="{ row }">
+            <Link
+                :href="route('transaksi.pembelian.show', row.purchase_id)"
+                class="font-mono text-sm font-medium text-primary-700 hover:underline dark:text-primary-400"
+            >{{ row.invoice }}</Link>
         </template>
-        <template #cell-payment_status="{ value }">
-            <AppBadge :color="statusColor[value] ?? 'gray'" size="sm" dot>{{ value }}</AppBadge>
+        <template #cell-subtotal="{ value }">
+            <span class="font-semibold text-gray-900 dark:text-white">{{ formatRupiah(value) }}</span>
         </template>
     </LaporanPageBase>
 </template>

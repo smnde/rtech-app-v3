@@ -28,14 +28,8 @@ use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-// Halaman utama
 Route::get('/', function () {
-    return Inertia::render('Welcome', [
-        'canLogin' => Route::has('login'),
-        'canRegister' => Route::has('register'),
-        'laravelVersion' => Application::VERSION,
-        'phpVersion' => PHP_VERSION,
-    ]);
+    return auth()->check() ? redirect()->route('dashboard') : redirect()->route('login');
 });
 
 // Semua route yang butuh autentikasi
@@ -134,6 +128,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/servis', [ReparationsController::class, 'store'])->middleware('permission:add reparation')->name('servis.store');
     Route::put('/servis/{reparation}', [ReparationsController::class, 'update'])->middleware('permission:edit reparation')->name('servis.update');
     Route::patch('/servis/{reparation}/konfirmasi', [ReparationsController::class, 'confirm'])->middleware('permission:edit reparation')->name('servis.confirm');
+    Route::post('/servis/{reparation}/tahapan', [ReparationsController::class, 'addStage'])->middleware('permission:edit reparation')->name('servis.add-stage');
     Route::patch('/servis/{reparation}/status', [ReparationsController::class, 'changeStatus'])->middleware('permission:edit reparation')->name('servis.status');
     Route::delete('/servis/{reparation}', [ReparationsController::class, 'destroy'])->middleware('permission:delete reparation')->name('servis.destroy');
 
@@ -142,8 +137,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/penjualan', [SalesController::class, 'index'])->middleware('permission:show sale')->name('penjualan');
         Route::get('/penjualan/create', [SalesController::class, 'create'])->middleware('permission:add sale')->name('penjualan.create');
         Route::post('/penjualan', [SalesController::class, 'store'])->middleware('permission:add sale')->name('penjualan.store');
+        Route::get('/penjualan/{sale}', [SalesController::class, 'show'])->middleware('permission:show sale')->name('penjualan.show');
+        Route::post('/penjualan/{sale}/lunas', [SalesController::class, 'markPaid'])->middleware('permission:edit sale')->name('penjualan.lunas');
         Route::get('/pembelian', [PurchasesController::class, 'index'])->middleware('permission:show purchase')->name('pembelian');
         Route::get('/pembelian/create', [PurchasesController::class, 'create'])->middleware('permission:add purchase')->name('pembelian.create');
+        Route::post('/pembelian/{purchase}/done', [PurchasesController::class, 'markDone'])->middleware('permission:edit purchase')->name('pembelian.done');
+        Route::get('/pembelian/{purchase}', [PurchasesController::class, 'show'])->middleware('permission:show purchase')->name('pembelian.show');
         Route::post('/pembelian', [PurchasesController::class, 'store'])->middleware('permission:add purchase')->name('pembelian.store');
 
         Route::prefix('keranjang/{type}')->whereIn('type', ['sale', 'purchase'])->name('keranjang.')->group(function () {
@@ -168,6 +167,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // === Mutasi Stok ===
     Route::get('/mutasi-stok', [StockMovementsController::class, 'index'])->middleware('permission:show stock_movement')->name('stock-movements.index');
     Route::post('/mutasi-stok', [StockMovementsController::class, 'store'])->middleware('permission:add stock_movement')->name('stock-movements.store');
+    Route::patch('/mutasi-stok/{stockMovement}', [StockMovementsController::class, 'update'])->middleware('permission:edit stock_movement')->name('stock-movements.update');
+    Route::delete('/mutasi-stok/{stockMovement}', [StockMovementsController::class, 'destroy'])->middleware('permission:delete stock_movement')->name('stock-movements.destroy');
 
     // === Laporan ===
     Route::prefix('laporan')->name('laporan.')->group(function () {
@@ -177,7 +178,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/pengeluaran', [ReportsController::class, 'pengeluaran'])->middleware('permission:show report')->name('pengeluaran');
         Route::get('/mutasi', [ReportsController::class, 'mutasi'])->middleware('permission:show report')->name('mutasi');
     });
-
 });
 
-require __DIR__.'/auth.php';
+require __DIR__ . '/auth.php';

@@ -50,9 +50,7 @@ menuItems.forEach((item) => {
 
         <!-- Logo / App name -->
         <div class="flex h-16 items-center gap-3 px-5 border-b border-gray-200 dark:border-gray-800">
-            <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-600 text-white font-bold text-sm shadow">
-                RT
-            </div>
+            <img src="/apple-touch-icon.png" alt="RTech Computer" class="h-9 w-9 rounded-lg shadow" />
             <span class="text-lg font-semibold text-gray-900 dark:text-white tracking-tight">RTech App</span>
         </div>
 

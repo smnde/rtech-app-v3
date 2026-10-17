@@ -2,7 +2,7 @@
 import { usePermission } from '@/composables/usePermission';
 import { ref, reactive, computed, watch } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Plus, Search, Inbox, X } from 'lucide-vue-next';
+import { Plus, Search, Inbox, X, Printer } from 'lucide-vue-next';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import AppPageHeader from '@/Components/UI/AppPageHeader.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
@@ -92,6 +92,7 @@ const columns = [
     { key: 'customer_name', label: 'Customer' },
     { key: 'total', label: 'Total' },
     { key: 'status', label: 'Status' },
+    { key: 'aksi', label: '' },
 ];
 </script>
 
@@ -173,16 +174,23 @@ const columns = [
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
                     <tr v-for="(row, i) in rows" :key="row.id"
-                        class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                        class="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                        @click="router.visit(row.show_url)">
                         <td class="px-5 py-3 text-sm text-gray-400">{{ i + 1 }}</td>
                         <td class="px-5 py-3">
-                            <span class="font-mono text-sm font-medium text-gray-900 dark:text-white">{{ row.invoice }}</span>
+                            <Link :href="row.show_url" class="font-mono text-sm font-medium text-primary-700 hover:underline dark:text-primary-400" @click.stop>{{ row.invoice }}</Link>
                         </td>
                         <td class="px-5 py-3 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ row.date }}</td>
                         <td class="px-5 py-3 text-sm text-gray-700 dark:text-gray-300">{{ row.customer_name ?? '—' }}</td>
                         <td class="px-5 py-3 text-sm font-semibold text-gray-900 dark:text-white whitespace-nowrap">{{ formatRupiah(row.total) }}</td>
                         <td class="px-5 py-3">
                             <AppBadge :color="statusColor[row.payment_status] ?? 'gray'" size="sm" dot>{{ row.payment_status }}</AppBadge>
+                        </td>
+                        <td class="px-5 py-3 text-right">
+                            <Link :href="row.print_url" title="Cetak Nota" @click.stop
+                                class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white">
+                                <Printer class="h-4 w-4" />
+                            </Link>
                         </td>
                     </tr>
                 </tbody>
@@ -204,14 +212,21 @@ const columns = [
                 <div
                     v-for="row in rows"
                     :key="row.id"
-                    class="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 shadow-sm"
+                    class="block cursor-pointer rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 shadow-sm transition-colors active:bg-gray-50 dark:active:bg-gray-800/50"
+                    @click="router.visit(row.show_url)"
                 >
                     <div class="flex items-start justify-between gap-3">
                         <div class="min-w-0">
                             <p class="font-mono font-semibold text-gray-900 dark:text-white text-sm truncate">{{ row.invoice }}</p>
                             <p class="mt-0.5 text-xs text-gray-400">{{ row.date }}</p>
                         </div>
-                        <AppBadge :color="statusColor[row.payment_status] ?? 'gray'" size="sm" dot>{{ row.payment_status }}</AppBadge>
+                        <div class="flex items-center gap-1.5">
+                            <AppBadge :color="statusColor[row.payment_status] ?? 'gray'" size="sm" dot>{{ row.payment_status }}</AppBadge>
+                            <Link :href="row.print_url" title="Cetak Nota" @click.stop
+                                class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800">
+                                <Printer class="h-4 w-4" />
+                            </Link>
+                        </div>
                     </div>
 
                     <dl class="mt-3 space-y-1">

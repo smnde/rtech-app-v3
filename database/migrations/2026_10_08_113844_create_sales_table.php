@@ -25,10 +25,13 @@ return new class extends Migration
             $table->string('invoice')->unique();
             $table->decimal('subtotal', 15, 2)->default(0);
             $table->decimal('discount', 15, 2)->default(0);
+            $table->decimal('header_discount', 15, 2)->default(0);
             $table->decimal('total', 15, 2)->default(0);
             $table->enum('payment_status', ['lunas', 'hutang', 'keep'])->default('lunas');
+            $table->enum('payment_method', ['cash', 'tf'])->nullable();
             $table->decimal('dp_amount', 15, 2)->nullable();
             $table->timestamp('paid_at')->nullable();
+            $table->text('notes')->nullable();
             $table->timestamps();
         });
     }

@@ -18,24 +18,29 @@ class ReportsController extends Controller
         [$from, $to] = $this->period($request);
 
         $sales = Sale::query()
-            ->with('customer:id,name')
+            ->with(['details' => fn($q) => $q->where('qty', '>', 0)->with('item:id,name')])
             ->whereDate('created_at', '>=', $from)
             ->whereDate('created_at', '<=', $to)
             ->latest()
             ->get();
 
+        $rows = $sales
+            ->flatMap(fn(Sale $sale) => $sale->details->map(fn($detail) => [
+                'invoice'      => $sale->invoice,
+                'sale_id'      => $sale->id,
+                'date'         => $sale->created_at->toDateString(),
+                'item_name'    => $detail->item?->name ?? '-',
+                'qty'          => (int) $detail->qty,
+                'subtotal'     => (float) $detail->subtotal,
+            ]))
+            ->values();
+
         return Inertia::render('Laporan/Penjualan', [
             'filters' => ['from' => $from, 'to' => $to],
-            'rows' => $sales->map(fn (Sale $sale) => [
-                'invoice' => $sale->invoice,
-                'date' => $sale->created_at->toDateString(),
-                'customer' => $sale->customer?->name ?? '-',
-                'total' => (float) $sale->total,
-                'payment_status' => $sale->payment_status,
-            ])->values(),
+            'rows'    => $rows,
             'summary' => [
-                'count' => $sales->count(),
-                'total' => (float) $sales->sum('total'),
+                'count'   => $sales->count(),
+                'total'   => (float) $sales->sum('total'),
             ],
         ]);
     }
@@ -45,28 +50,32 @@ class ReportsController extends Controller
         [$from, $to] = $this->period($request);
 
         $reparations = Reparation::query()
-            ->with('customer:id,name')
+            ->with('stages.items')
+            ->where('status', 'TAKEN')
             ->whereDate('created_at', '>=', $from)
             ->whereDate('created_at', '<=', $to)
             ->latest()
             ->get();
 
+        $rows = $reparations
+            ->flatMap(function (Reparation $reparation) {
+                return $reparation->stages
+                    ->filter(fn ($stage) => $stage->status === 'CONFIRMED')
+                    ->flatMap(fn ($stage) => $stage->items->map(fn ($item) => [
+                        'invoice' => $reparation->invoice,
+                        'id'      => $reparation->id,
+                        'date'      => $reparation->created_at->toDateString(),
+                        'label'     => $item->label,
+                        'cost'      => $item->cost,
+                    ]));
+            })
+            ->values();
+
         return Inertia::render('Laporan/Servis', [
             'filters' => ['from' => $from, 'to' => $to],
-            'rows' => $reparations->map(fn (Reparation $reparation) => [
-                'id' => $reparation->id,
-                'date' => $reparation->created_at->toDateString(),
-                'customer' => $reparation->customer?->name ?? '-',
-                'item_name' => $reparation->item_name,
-                'complaint' => implode(', ', $reparation->complaint ?? []),
-                'estimated_cost' => $reparation->estimated_cost,
-                'status' => $reparation->status,
-            ])->values(),
+            'rows'    => $rows,
             'summary' => [
                 'count' => $reparations->count(),
-                'done' => $reparations->whereIn('status', ['DONE', 'TAKEN'])->count(),
-                'process' => $reparations->whereIn('status', ['ON PROCESS', 'CHECKED', 'CONFIRMED'])->count(),
-                'pending' => $reparations->whereIn('status', ['RECEIVED', 'WAITING CONFIRMATION', 'PENDING'])->count(),
             ],
         ]);
     }
@@ -76,22 +85,26 @@ class ReportsController extends Controller
         [$from, $to] = $this->period($request);
 
         $purchases = Purchase::query()
-            ->with(['supplier:id,name', 'customer:id,name'])
+            ->with(['details' => fn($q) => $q->where('qty', '>', 0)->with('item:id,name')])
             ->whereDate('created_at', '>=', $from)
             ->whereDate('created_at', '<=', $to)
             ->latest()
             ->get();
 
+        $rows = $purchases
+            ->flatMap(fn(Purchase $purchase) => $purchase->details->map(fn($detail) => [
+                'invoice'      => $purchase->invoice,
+                'purchase_id'  => $purchase->id,
+                'date'         => $purchase->created_at->toDateString(),
+                'item_name'    => $detail->item?->name ?? '-',
+                'qty'          => (int) $detail->qty,
+                'subtotal'     => (float) $detail->subtotal,
+            ]))
+            ->values();
+
         return Inertia::render('Laporan/Pembelian', [
             'filters' => ['from' => $from, 'to' => $to],
-            'rows' => $purchases->map(fn (Purchase $purchase) => [
-                'invoice' => $purchase->invoice,
-                'date' => $purchase->created_at->toDateString(),
-                'source' => $purchase->supplier?->name ?? $purchase->customer?->name ?? '-',
-                'total' => (float) $purchase->total,
-                'payment_status' => $purchase->payment_status,
-                'po_type' => $purchase->po_type,
-            ])->values(),
+            'rows'    => $rows,
             'summary' => [
                 'count' => $purchases->count(),
                 'total' => (float) $purchases->sum('total'),
@@ -112,7 +125,7 @@ class ReportsController extends Controller
 
         return Inertia::render('Laporan/Pengeluaran', [
             'filters' => ['from' => $from, 'to' => $to],
-            'rows' => $expenses->map(fn (Expense $expense) => [
+            'rows' => $expenses->map(fn(Expense $expense) => [
                 'id' => $expense->id,
                 'date' => $expense->created_at->toDateString(),
                 'category' => $expense->category,
@@ -133,16 +146,16 @@ class ReportsController extends Controller
 
         $movements = StockMovement::query()
             ->with(['item', 'user:id,name'])
-            ->whereDate('created_at', '>=', $from)
-            ->whereDate('created_at', '<=', $to)
+            ->whereDate('movement_date', '>=', $from)
+            ->whereDate('movement_date', '<=', $to)
             ->latest()
             ->get();
 
         return Inertia::render('Laporan/MutasiStok', [
             'filters' => ['from' => $from, 'to' => $to],
-            'rows' => $movements->map(fn (StockMovement $movement) => [
+            'rows' => $movements->map(fn(StockMovement $movement) => [
                 'id' => $movement->id,
-                'date' => $movement->created_at->toDateString(),
+                'date' => $movement->movement_date?->toDateString(),
                 'item_name' => $movement->item?->name ?? '-',
                 'item_type' => $movement->item_type,
                 'status' => $movement->status,

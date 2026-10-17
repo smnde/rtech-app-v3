@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
     'user_id',
     'type',
     'status',
+    'movement_date',
     'quantity',
     'stock_before',
     'stock_after',
@@ -20,6 +21,13 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 ])]
 class StockMovement extends Model
 {
+    protected function casts(): array
+    {
+        return [
+            'movement_date' => 'date',
+        ];
+    }
+
     public function item(): MorphTo
     {
         return $this->morphTo();
