@@ -25,13 +25,17 @@ class PurchasesController extends Controller
 {
     public function index(Request $request): Response
     {
+        $today = now()->toDateString();
+        $from  = $request->filled('from') ? $request->string('from')->toString() : $today;
+        $to    = $request->filled('to')   ? $request->string('to')->toString()   : $today;
+
         $purchases = Purchase::query()
             ->with(['supplier:id,name', 'customer:id,name'])
             ->when($request->search, fn ($query, $search) => $query->where('invoice', 'like', "%{$search}%"))
             ->when($request->filled('status'), fn ($query) => $query->where('payment_status', $request->string('status')))
             ->when($request->filled('order_status'), fn ($query) => $query->where('status', $request->string('order_status')))
-            ->when($request->filled('from'), fn ($query) => $query->whereDate('created_at', '>=', $request->string('from')))
-            ->when($request->filled('to'), fn ($query) => $query->whereDate('created_at', '<=', $request->string('to')))
+            ->whereDate('created_at', '>=', $from)
+            ->whereDate('created_at', '<=', $to)
             ->latest()
             ->paginate(10)
             ->withQueryString();
@@ -39,11 +43,11 @@ class PurchasesController extends Controller
         return inertia('Transaksi/Pembelian', [
             'purchases' => PurchasesResource::collection($purchases),
             'filters' => [
-                'search' => $request->search,
-                'status' => $request->status,
+                'search'       => $request->search,
+                'status'       => $request->status,
                 'order_status' => $request->order_status,
-                'from' => $request->from,
-                'to' => $request->to,
+                'from'         => $from,
+                'to'           => $to,
             ],
         ]);
     }

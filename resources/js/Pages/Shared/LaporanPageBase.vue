@@ -22,12 +22,17 @@ const props = defineProps({
     exportPdf:   { type: Boolean, default: false },
 });
 
-const period = ref({ from: props.filters.from ?? '', to: props.filters.to ?? '' });
+const today = new Date().toISOString().slice(0, 10);
 
-const hasActivePeriod = computed(() => period.value.from !== '' || period.value.to !== '');
+const period = ref({
+    from: props.filters.from ?? today,
+    to: props.filters.to ?? today,
+});
+
+const hasActivePeriod = computed(() => period.value.from !== today || period.value.to !== today);
 
 const resetPeriod = () => {
-    period.value = { from: '', to: '' };
+    period.value = { from: today, to: today };
     applyPeriod();
 };
 

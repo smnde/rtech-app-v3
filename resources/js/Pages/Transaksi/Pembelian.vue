@@ -48,18 +48,23 @@ const orderStatusOptions = [
     { id: 'done',    label: 'Done' },
 ];
 
+const today = new Date().toISOString().slice(0, 10);
+
 const filterForm = reactive({
     search: props.filters.search ?? '',
     status: props.filters.status ?? '',
     orderStatus: props.filters.order_status ?? '',
     range: {
-        from: props.filters.from ?? '',
-        to: props.filters.to ?? '',
+        from: props.filters.from ?? today,
+        to: props.filters.to ?? today,
     },
 });
 
 const hasActiveFilter = computed(() =>
-    filterForm.status !== '' || filterForm.orderStatus !== '' || filterForm.range.from !== '' || filterForm.range.to !== '',
+    filterForm.status !== ''
+    || filterForm.orderStatus !== ''
+    || filterForm.range.from !== today
+    || filterForm.range.to !== today
 );
 
 const applyFilter = () => {
@@ -90,7 +95,7 @@ watch(() => filterForm.range, applyFilter, { deep: true });
 const resetFilter = () => {
     filterForm.status = '';
     filterForm.orderStatus = '';
-    filterForm.range = { from: '', to: '' };
+    filterForm.range = { from: today, to: today };
 };
 
 const formatRupiah = (value) => `Rp ${Number(value ?? 0).toLocaleString('id-ID')}`;

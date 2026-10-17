@@ -20,6 +20,7 @@ import {
     Receipt,
     ShoppingBag,
     Truck,
+    Wallet,
 } from 'lucide-vue-next';
 
 /**
@@ -136,6 +137,13 @@ export const menuItems = [
                 icon: Receipt,
                 route: 'expenses.index',
                 permission: 'show expense',
+            },
+            {
+                key: 'transaksi-kas',
+                label: 'Kas',
+                icon: Wallet,
+                route: 'cashflow.index',
+                permission: 'show cashflow',
             },
         ],
     },

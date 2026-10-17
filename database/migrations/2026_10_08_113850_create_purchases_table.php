@@ -32,9 +32,9 @@ return new class extends Migration
             $table->string('invoice')->unique();
             $table->decimal('total', 15, 2)->default(0);
             $table->enum('payment_status', ['lunas', 'hutang'])->default('lunas');
-            $table->enum('status', ['ordered', 'pending', 'done'])->default('done')->after('payment_status');
-            $table->timestamp('paid_at')->nullable();
+            $table->enum('status', ['ordered', 'pending', 'done'])->default('done');
             $table->text('notes')->nullable();
+            $table->timestamp('paid_at')->nullable();
             $table->timestamps();
 
             $table->index('buy_from_reference');

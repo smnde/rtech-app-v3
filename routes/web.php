@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccesoriesController;
+use App\Http\Controllers\CashFlowController;
 use App\Http\Controllers\BrandsController;
 use App\Http\Controllers\CartsController;
 use App\Http\Controllers\CategoriesController;
@@ -163,6 +164,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/pengeluaran', [ExpensesController::class, 'store'])->middleware('permission:add expense')->name('expenses.store');
     Route::put('/pengeluaran/{expense}', [ExpensesController::class, 'update'])->middleware('permission:edit expense')->name('expenses.update');
     Route::delete('/pengeluaran/{expense}', [ExpensesController::class, 'destroy'])->middleware('permission:delete expense')->name('expenses.destroy');
+
+    // === Kas (CashFlow) ===
+    Route::get('/kas', [CashFlowController::class, 'index'])->middleware('permission:show cashflow')->name('cashflow.index');
+    Route::post('/kas', [CashFlowController::class, 'store'])->middleware('permission:add cashflow')->name('cashflow.store');
+    Route::put('/kas/{cashFlow}', [CashFlowController::class, 'update'])->middleware('permission:edit cashflow')->name('cashflow.update');
+    Route::delete('/kas/{cashFlow}', [CashFlowController::class, 'destroy'])->middleware('permission:delete cashflow')->name('cashflow.destroy');
 
     // === Mutasi Stok ===
     Route::get('/mutasi-stok', [StockMovementsController::class, 'index'])->middleware('permission:show stock_movement')->name('stock-movements.index');

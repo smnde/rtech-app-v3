@@ -24,6 +24,10 @@ class ReparationsController extends Controller
 {
     public function index(Request $request): Response
     {
+        $today = now()->toDateString();
+        $from  = $request->filled('from') ? $request->string('from')->toString() : $today;
+        $to    = $request->filled('to')   ? $request->string('to')->toString()   : $today;
+
         $reparations = Reparation::query()
             ->with('customer:id,name,phone')
             ->when($request->search, fn ($query, $search) => $query->where(function ($query) use ($search) {
@@ -32,8 +36,8 @@ class ReparationsController extends Controller
             }))
             ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
             ->when($request->filled('flag'), fn ($query) => $query->whereJsonContains('flag', $request->string('flag')->toString()))
-            ->when($request->filled('from'), fn ($query) => $query->whereDate('created_at', '>=', $request->string('from')))
-            ->when($request->filled('to'), fn ($query) => $query->whereDate('created_at', '<=', $request->string('to')))
+            ->whereDate('created_at', '>=', $from)
+            ->whereDate('created_at', '<=', $to)
             ->latest()
             ->paginate(10)
             ->withQueryString();
@@ -45,9 +49,9 @@ class ReparationsController extends Controller
             'filters' => [
                 'search' => $request->search,
                 'status' => $request->status,
-                'flag' => $request->flag,
-                'from' => $request->from,
-                'to' => $request->to,
+                'flag'   => $request->flag,
+                'from'   => $from,
+                'to'     => $to,
             ],
         ]);
     }

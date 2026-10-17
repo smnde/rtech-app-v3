@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Accessory;
+use App\Models\CashFlow;
 use App\Models\Customer;
 use App\Models\Expense;
 use App\Models\Gadget;
@@ -42,12 +43,14 @@ class DashboardController extends Controller
 
         $today = now()->toDateString();
 
-        $salesTodayTotal = (float) Sale::query()->whereDate('created_at', $today)->sum('total');
+        $salesTodayTotal     = (float) Sale::query()->whereDate('created_at', $today)->sum('total');
         $purchasesTodayTotal = (float) Purchase::query()->whereDate('created_at', $today)->sum('total');
-        $expensesTodayTotal = (float) Expense::query()->whereDate('created_at', $today)->sum('amount');
+        $expensesTodayTotal  = (float) Expense::query()->whereDate('created_at', $today)->sum('amount');
 
-        $totalIncome = (float) Sale::query()->sum('total');
-        $totalOutcome = (float) Purchase::query()->sum('total') + (float) Expense::query()->sum('amount');
+        $cashFlowIn  = (float) CashFlow::where('type', 'in')->sum('amount');
+        $cashFlowOut = (float) CashFlow::where('type', 'out')->sum('amount');
+        $totalIncome  = (float) Sale::query()->sum('total') + $cashFlowIn;
+        $totalOutcome = (float) Purchase::query()->sum('total') + (float) Expense::query()->sum('amount') + $cashFlowOut;
 
         return Inertia::render('Dashboard', [
             'stats' => [

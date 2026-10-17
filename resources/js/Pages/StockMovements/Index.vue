@@ -71,8 +71,10 @@ const STATUS_OPTIONS_OUT = [
 
 const statusOptionsForType = computed(() => (form.type === 'out' ? STATUS_OPTIONS_OUT : STATUS_OPTIONS_IN));
 
+const todayDate = new Date().toISOString().slice(0, 10);
+
 const filterForm = reactive({
-    period: { from: props.filters.from ?? '', to: props.filters.to ?? '' },
+    period: { from: props.filters.from ?? todayDate, to: props.filters.to ?? todayDate },
     type:   props.filters.type ?? 'all',
     status: props.filters.status ?? 'all',
 });
@@ -82,10 +84,15 @@ const STATUS_FILTER_OPTIONS = [
     ...Object.entries(STATUS_LABEL).map(([id, label]) => ({ id, label })),
 ];
 
-const hasActiveFilter = computed(() => filterForm.type !== 'all' || filterForm.status !== 'all' || filterForm.period.from !== '' || filterForm.period.to !== '');
+const hasActiveFilter = computed(() =>
+    filterForm.type !== 'all'
+    || filterForm.status !== 'all'
+    || filterForm.period.from !== todayDate
+    || filterForm.period.to !== todayDate
+);
 
 const resetFilter = () => {
-    filterForm.period = { from: '', to: '' };
+    filterForm.period = { from: todayDate, to: todayDate };
     filterForm.type = 'all';
     filterForm.status = 'all';
     applyFilter();

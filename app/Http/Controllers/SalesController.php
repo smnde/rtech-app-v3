@@ -23,12 +23,16 @@ class SalesController extends Controller
 {
     public function index(Request $request): Response
     {
+        $today = now()->toDateString();
+        $from  = $request->filled('from') ? $request->string('from')->toString() : $today;
+        $to    = $request->filled('to')   ? $request->string('to')->toString()   : $today;
+
         $sales = Sale::query()
             ->with('customer:id,name')
             ->when($request->search, fn ($query, $search) => $query->where('invoice', 'like', "%{$search}%"))
             ->when($request->filled('status'), fn ($query) => $query->where('payment_status', $request->string('status')))
-            ->when($request->filled('from'), fn ($query) => $query->whereDate('created_at', '>=', $request->string('from')))
-            ->when($request->filled('to'), fn ($query) => $query->whereDate('created_at', '<=', $request->string('to')))
+            ->whereDate('created_at', '>=', $from)
+            ->whereDate('created_at', '<=', $to)
             ->latest()
             ->paginate(10)
             ->withQueryString();
@@ -38,8 +42,8 @@ class SalesController extends Controller
             'filters' => [
                 'search' => $request->search,
                 'status' => $request->status,
-                'from' => $request->from,
-                'to' => $request->to,
+                'from'   => $from,
+                'to'     => $to,
             ],
         ]);
     }

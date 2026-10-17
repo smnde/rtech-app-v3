@@ -16,10 +16,14 @@ class StockMovementsController extends Controller
 {
     public function index(Request $request): Response
     {
+        $today = now()->toDateString();
+        $from  = $request->filled('from') ? $request->string('from')->toString() : $today;
+        $to    = $request->filled('to')   ? $request->string('to')->toString()   : $today;
+
         $movements = StockMovement::query()
             ->with(['item', 'user:id,name'])
-            ->when($request->filled('from'), fn ($query) => $query->whereDate('movement_date', '>=', $request->string('from')))
-            ->when($request->filled('to'), fn ($query) => $query->whereDate('movement_date', '<=', $request->string('to')))
+            ->whereDate('movement_date', '>=', $from)
+            ->whereDate('movement_date', '<=', $to)
             ->when($request->filled('type') && $request->string('type') !== 'all', fn ($query) => $query->where('type', $request->string('type')))
             ->when($request->filled('status') && $request->string('status') !== 'all', fn ($query) => $query->where('status', $request->string('status')))
             ->latest()
@@ -54,9 +58,9 @@ class StockMovementsController extends Controller
                     ]),
             )->values(),
             'filters' => [
-                'from' => $request->input('from'),
-                'to' => $request->input('to'),
-                'type' => $request->input('type', 'all'),
+                'from'   => $from,
+                'to'     => $to,
+                'type'   => $request->input('type', 'all'),
                 'status' => $request->input('status', 'all'),
             ],
         ]);

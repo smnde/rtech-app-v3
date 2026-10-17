@@ -85,12 +85,19 @@ const statusOptions = computed(() => props.statuses.map((status) => ({ id: statu
 const statusFilterOptions = computed(() => [{ id: '', label: 'Semua status' }, ...statusOptions.value]);
 const flagFilterOptions = computed(() => [{ id: '', label: 'Semua kerusakan' }, ...flagOptions]);
 
-const hasActiveFilter = computed(() => filterForm.status !== '' || filterForm.flag !== '' || filterForm.period.from !== '' || filterForm.period.to !== '');
+const todayDate = new Date().toISOString().slice(0, 10);
+
+const hasActiveFilter = computed(() =>
+    filterForm.status !== ''
+    || filterForm.flag !== ''
+    || filterForm.period.from !== todayDate
+    || filterForm.period.to !== todayDate
+);
 
 const resetFilter = () => {
     filterForm.status = '';
     filterForm.flag = '';
-    filterForm.period = { from: '', to: '' };
+    filterForm.period = { from: todayDate, to: todayDate };
     applyFilter();
 };
 
@@ -98,7 +105,7 @@ const filterForm = reactive({
     search: props.filters.search ?? '',
     status: props.filters.status ?? '',
     flag: props.filters.flag ?? '',
-    period: { from: props.filters.from ?? '', to: props.filters.to ?? '' },
+    period: { from: props.filters.from ?? todayDate, to: props.filters.to ?? todayDate },
 });
 
 const applyFilter = () => {

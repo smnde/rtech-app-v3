@@ -42,16 +42,22 @@ const statusOptions = [
     { id: 'keep', label: 'Keep' },
 ];
 
+const today = new Date().toISOString().slice(0, 10);
+
 const filterForm = reactive({
     search: props.filters.search ?? '',
     status: props.filters.status ?? '',
     range: {
-        from: props.filters.from ?? '',
-        to: props.filters.to ?? '',
+        from: props.filters.from ?? today,
+        to: props.filters.to ?? today,
     },
 });
 
-const hasActiveFilter = computed(() => filterForm.status !== '' || filterForm.range.from !== '' || filterForm.range.to !== '');
+const hasActiveFilter = computed(() =>
+    filterForm.status !== ''
+    || filterForm.range.from !== today
+    || filterForm.range.to !== today
+);
 
 const applyFilter = () => {
     router.get(route('transaksi.penjualan'), {
@@ -78,7 +84,7 @@ watch(() => filterForm.range, applyFilter, { deep: true });
 
 const resetFilter = () => {
     filterForm.status = '';
-    filterForm.range = { from: '', to: '' };
+    filterForm.range = { from: today, to: today };
 };
 
 const formatRupiah = (value) => `Rp ${Number(value ?? 0).toLocaleString('id-ID')}`;
