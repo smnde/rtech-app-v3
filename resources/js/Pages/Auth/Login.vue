@@ -51,7 +51,7 @@ const error = ref('');
 </script>
 
 <template>
-    <Head title="Masuk — RTech App" />
+    <Head title="Masuk" />
 
     <div class="relative min-h-screen overflow-hidden bg-gray-950 text-white">
         <!-- Latar -->
