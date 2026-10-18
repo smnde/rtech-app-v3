@@ -14,7 +14,7 @@ self.addEventListener('install', (event) => {
             cache.addAll([
                 OFFLINE_URL,
                 '/manifest.webmanifest',
-                '/icons/icon-192.png',
+                '/icons/icon-512.png',
                 '/icons/icon-512.png',
             ])
         ).then(() => self.skipWaiting())

@@ -229,11 +229,11 @@ const labelClass = 'block text-sm font-medium text-gray-700 dark:text-gray-300 m
             <section class="space-y-4 border-t border-gray-100 pt-5 dark:border-gray-800">
                 <div>
                     <label :class="labelClass">Aksesori</label>
-                    <AppTagInput v-model="form.accessories" placeholder="Contoh: Charger, Case (Enter untuk menambah)" />
+                    <AppTagInput v-model="form.accessories" placeholder="Contoh: Charger, Case (ketik lalu tekan + atau Enter)" />
                 </div>
                 <div>
                     <label :class="labelClass">Catatan Kendala</label>
-                    <AppTagInput v-model="form.issue_notes" placeholder="Contoh: Layar retak (Enter untuk menambah)" />
+                    <AppTagInput v-model="form.issue_notes" placeholder="Contoh: Layar retak (ketik lalu tekan + atau Enter)" />
                 </div>
                 <div>
                     <label :class="labelClass">Catatan</label>

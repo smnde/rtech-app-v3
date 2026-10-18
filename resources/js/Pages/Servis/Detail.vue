@@ -1,7 +1,7 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, CheckCircle2, Layers, Plus, Printer, RefreshCw, X } from 'lucide-vue-next';
+import { ArrowLeft, CheckCircle2, Layers, MoreHorizontal, Plus, Printer, RefreshCw, Wallet, X } from 'lucide-vue-next';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
 import AppBadge from '@/Components/UI/AppBadge.vue';
@@ -138,6 +138,21 @@ const submitStatus = (payload) => {
 const showSettle = ref(false);
 const settleForm = ref({ status: 'DONE', note: null, paid: false });
 
+const actionMenu = ref(false);
+const actionMenuRef = ref(null);
+
+const onActionMenuOutside = (event) => {
+    if (!actionMenuRef.value?.contains(event.target)) actionMenu.value = false;
+};
+
+const runAction = (fn) => {
+    actionMenu.value = false;
+    fn();
+};
+
+onMounted(() => document.addEventListener('mousedown', onActionMenuOutside));
+onBeforeUnmount(() => document.removeEventListener('mousedown', onActionMenuOutside));
+
 const submitSettle = (paid) => {
     saving.value = true;
     router.patch(route('servis.status', props.reparation.id), {
@@ -202,13 +217,14 @@ const receiptMessage = computed(() => {
 
     <AppLayout title="Detail Servis">
         <div class="flex-1 min-h-0 flex flex-col gap-6">
-            <div class="shrink-0 flex flex-wrap items-center justify-between gap-3">
+            <div class="shrink-0 flex flex-col gap-3">
                 <Link :href="route('servis.index')" class="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 dark:hover:text-white">
                     <ArrowLeft class="h-4 w-4" />
                     Kembali ke daftar servis
                 </Link>
 
-                <div class="flex items-center gap-2">
+                <!-- Desktop: semua aksi sejajar -->
+                <div class="hidden sm:flex sm:items-center sm:justify-end sm:gap-2">
                     <AppButton variant="secondary" size="sm" @click="showReceipt = true">
                         <Printer class="h-4 w-4" />
                         Cetak Nota
@@ -222,7 +238,8 @@ const receiptMessage = computed(() => {
                         Konfirmasi
                     </AppButton>
                     <AppButton v-if="can('edit reparation') && reparation.payment_status !== 'paid' && ['DONE', 'TAKEN'].includes(reparation.status)"
-                        variant="primary" size="sm" :loading="saving" @click="markPaid">
+                        variant="secondary" size="sm" :loading="saving" @click="markPaid">
+                        <Wallet class="h-4 w-4" />
                         Tandai Lunas
                     </AppButton>
                     <AppButton v-if="can('edit reparation')" variant="primary" size="sm" @click="showStatus = true">
@@ -230,6 +247,37 @@ const receiptMessage = computed(() => {
                         Ubah Status
                     </AppButton>
                 </div>
+
+                <!-- Mobile: aksi utama + menu -->
+                <div class="grid grid-cols-[1fr_auto] gap-2 sm:hidden">
+                    <AppButton v-if="can('edit reparation')" variant="primary" size="sm" class="justify-center" @click="showStatus = true">
+                        <RefreshCw class="h-4 w-4" />
+                        Ubah Status
+                    </AppButton>
+                    <span v-else />
+
+                    <div class="relative" ref="actionMenuRef">
+                        <AppButton variant="secondary" size="sm" icon-only aria-label="Aksi lainnya" @click="actionMenu = !actionMenu">
+                            <MoreHorizontal class="h-4 w-4" />
+                        </AppButton>
+
+                        <div v-if="actionMenu" class="absolute right-0 z-30 mt-2 w-52 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 py-1 shadow-xl">
+                            <button type="button" class="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/60" @click="runAction(() => showReceipt = true)">
+                                <Printer class="h-4 w-4 text-gray-400" /> Cetak Nota
+                            </button>
+                            <button v-if="can('edit reparation') && canConfirm" type="button" class="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/60" @click="runAction(openAddStage)">
+                                <Layers class="h-4 w-4 text-gray-400" /> Tambah Tahap
+                            </button>
+                            <button v-if="can('edit reparation') && canConfirm" type="button" class="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/60" @click="runAction(() => showConfirm = true)">
+                                <CheckCircle2 class="h-4 w-4 text-gray-400" /> Konfirmasi
+                            </button>
+                            <button type="button" class="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/60" @click="runAction(() => showSettle = true)">
+                                <Wallet class="h-4 w-4 text-gray-400" /> Rincian Biaya
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
             </div>
 
             <div class="scrollbar-styled scrollbar-mobile-hidden flex-1 min-h-0 overflow-y-auto space-y-6 pb-4">

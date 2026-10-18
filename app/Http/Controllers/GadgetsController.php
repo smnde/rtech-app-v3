@@ -7,6 +7,7 @@ use App\Http\Resources\GadgetsResource;
 use App\Models\Brand;
 use App\Models\Gadget;
 use App\Models\Supplier;
+use App\Support\StockHistory;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -60,7 +61,7 @@ class GadgetsController extends Controller
                 'accessories' => $gadget->accessories ?? [],
                 'issue_notes' => $gadget->issue_notes ?? [],
             ],
-            'history' => [],
+            'history' => StockHistory::forItem($gadget),
         ]);
     }
 

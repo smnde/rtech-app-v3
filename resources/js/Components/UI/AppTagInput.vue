@@ -1,9 +1,10 @@
 <script setup>
 import { ref } from 'vue';
+import { Plus } from 'lucide-vue-next';
 
 const props = defineProps({
     modelValue: { type: Array, default: () => [] },
-    placeholder: { type: String, default: 'Ketik lalu Enter' },
+    placeholder: { type: String, default: 'Ketik lalu tekan + atau Enter' },
     error: { type: Boolean, default: false },
 });
 
@@ -56,5 +57,14 @@ const onBackspace = () => {
             @keydown.enter.prevent="addTag"
             @keydown.backspace="onBackspace"
         />
+        <button
+            v-if="draft.trim() !== ''"
+            type="button"
+            class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-primary-600 hover:bg-primary-50 dark:text-primary-400 dark:hover:bg-primary-900/30"
+            aria-label="Tambah"
+            @click="addTag"
+        >
+            <Plus class="h-4 w-4" />
+        </button>
     </div>
 </template>

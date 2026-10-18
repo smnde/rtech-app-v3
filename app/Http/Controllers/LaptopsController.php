@@ -9,6 +9,7 @@ use App\Models\ItemLog;
 use App\Models\Laptop;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Support\StockHistory;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -66,7 +67,7 @@ class LaptopsController extends Controller
                 'issue_notes' => $laptop->issues(),
                 'status' => $laptop->status,
             ],
-            'history' => [],
+            'history' => StockHistory::forItem($laptop),
             'logs' => $laptop->itemLogs->map(fn (ItemLog $log) => [
                 'id' => $log->id,
                 'type' => $log->type,

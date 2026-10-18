@@ -21,18 +21,22 @@ class CartResource extends JsonResource
             'customer_name' => $this->customer?->name,
             'total' => (float) $this->total,
             'item_count' => $this->item_count,
-            'items' => $this->whenLoaded('items', fn () => $this->items->map(fn ($item) => [
-                'id' => $item->id,
-                'item_type' => $item->item_type,
-                'item_id' => $item->item_id,
-                'name' => $item->product()?->name,
-                'code' => $item->product()?->sku,
-                'spec' => $this->formatSpec($item->product()?->specification),
-                'qty' => $item->qty,
-                'price' => (float) $item->price,
-                'discount' => (float) $item->discount,
-                'is_bonus' => $item->is_bonus,
-            ])),
+            'items' => $this->whenLoaded('items', fn () => $this->items->map(function ($item) {
+                $product = $item->product;
+
+                return [
+                    'id' => $item->id,
+                    'item_type' => $item->item_type,
+                    'item_id' => $item->item_id,
+                    'name' => $product?->name,
+                    'code' => $product?->sku,
+                    'spec' => $this->formatSpec($product?->specification),
+                    'qty' => $item->qty,
+                    'price' => (float) $item->price,
+                    'discount' => (float) $item->discount,
+                    'is_bonus' => $item->is_bonus,
+                ];
+            })),
         ];
     }
 

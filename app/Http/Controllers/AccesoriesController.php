@@ -7,6 +7,7 @@ use App\Http\Resources\AccessoriesResource;
 use App\Models\Accessory;
 use App\Models\Brand;
 use App\Models\Supplier;
+use App\Support\StockHistory;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -56,7 +57,7 @@ class AccesoriesController extends Controller
                 'brand_name' => $accessory->brand?->name,
                 'supplier_name' => $accessory->supplier?->name,
             ],
-            'history' => [],
+            'history' => StockHistory::forItem($accessory),
         ]);
     }
 

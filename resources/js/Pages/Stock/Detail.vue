@@ -114,6 +114,15 @@ const MOVEMENT_LABEL = {
     adjustment: { text: 'Adjust', icon: Layers, cls: 'text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20' },
 };
 
+// Status mutasi: pembelian/refund masuk, terjual/bonus/hutang keluar.
+const MOVEMENT_STATUS = {
+    PEMBELIAN: { text: 'Pembelian',     cls: 'text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
+    REFUND:    { text: 'Refund',        cls: 'text-teal-700 dark:text-teal-400 bg-teal-500/10 border-teal-500/20' },
+    TERJUAL:   { text: 'Terjual',       cls: 'text-indigo-700 dark:text-indigo-400 bg-indigo-500/10 border-indigo-500/20' },
+    BONUS:     { text: 'Bonus',         cls: 'text-fuchsia-700 dark:text-fuchsia-400 bg-fuchsia-500/10 border-fuchsia-500/20' },
+    HUTANG:    { text: 'Hutang',        cls: 'text-amber-700 dark:text-amber-400 bg-amber-500/10 border-amber-500/20' },
+};
+
 const rupiah = (value) => (value === null || value === undefined || value === ''
     ? '—'
     : new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value));
@@ -123,7 +132,7 @@ const formatDateTime = (value) => (value
     : '—');
 
 const stockHistory = computed(() =>
-    [...props.history].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)),
+    [...props.history].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
 );
 
 const isLaptop = computed(() => props.module === 'laptop');
@@ -268,6 +277,10 @@ const formatMovementQuantity = (movement) => {
                                 class="flex items-start gap-3 rounded-lg border border-gray-100 bg-gray-50/60 p-2.5 dark:border-gray-800 dark:bg-gray-800/30">
                                 <span :class="['shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold', (MOVEMENT_LABEL[movement.type] ?? MOVEMENT_LABEL.adjustment).cls]">
                                     {{ (MOVEMENT_LABEL[movement.type] ?? MOVEMENT_LABEL.adjustment).text }}
+                                </span>
+                                <span v-if="movement.status"
+                                    :class="['shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold', (MOVEMENT_STATUS[movement.status] ?? MOVEMENT_STATUS.TERJUAL).cls]">
+                                    {{ (MOVEMENT_STATUS[movement.status] ?? { text: movement.status }).text }}
                                 </span>
                                 <div class="min-w-0 flex-1">
                                     <div class="flex items-center justify-between gap-2">

@@ -78,9 +78,338 @@ const PAPER_CSS = `
     .section-title { font-size: 9px; text-transform: uppercase; letter-spacing: .8px; color: #9ca3af; margin-top: 5mm; }
 `;
 
-// Kepala dokumen: identitas toko + judul & nomor nota.
+// ===================== PDF vector (tanpa canvas) =====================
+// Nota digambar langsung ke jsPDF: tidak ada html2canvas, jadi tidak bisa
+// terpotong di layar sempit dan teks tetap tajam.
+
+const PDF = {
+    width: DEFAULT_WIDTH_MM,
+    height: 297,
+    padX: 14,
+    padY: 12,
+    font: 'helvetica',
+    left: 0,
+    right: 0,
+    widthInner: 0,
+    logo: undefined,
+};
+
+// Batas aman satu halaman saat kosong (dipakai bila nota kepanjangan).
+const PAGE_MM = 297;
+
+function initPdfLayout() {
+    PDF.left = PDF.padX;
+    PDF.right = PDF.width - PDF.padX;
+    PDF.widthInner = PDF.right - PDF.left;
+}
+
+/** Pecah teks jadi beberapa baris sesuai lebar maksimum. */
+function wrapText(pdf, text, maxWidth) {
+    const words = String(text ?? '').split(/\s+/).filter(Boolean);
+    const lines = [];
+    let line = '';
+    for (const word of words) {
+        const next = line ? `${line} ${word}` : word;
+        if (pdf.getTextWidth(next) <= maxWidth || !line) {
+            line = next;
+        } else {
+            lines.push(line);
+            line = word;
+        }
+    }
+    if (line) lines.push(line);
+    return lines.length ? lines : [''];
+}
+
+function setFont(pdf, size, style = 'normal', color = [17, 24, 39]) {
+    pdf.setFont(PDF.font, style);
+    pdf.setFontSize(size);
+    pdf.setTextColor(...color);
+}
+
+
+
+function drawHead(pdf, { store = {}, title = '', invoice = '', badge = null }) {
+    const top = PDF.padY;
+    let y = top;
+
+    // Logo toko (PNG asli dari public/icons, bukan huruf R tiruan).
+    const logo = 10;
+    if (PDF.logo) {
+        pdf.addImage(PDF.logo, 'PNG', PDF.left, top, logo, logo);
+    }
+    const textLeft = PDF.left + logo + 3;
+
+    setFont(pdf, 14, 'bold');
+    pdf.text(store.name ?? 'Toko', textLeft, top + 4.2);
+    y = top + 4.2;
+    setFont(pdf, 7.5, 'normal', [107, 114, 128]);
+    for (const line of [store.address, store.phone].filter(Boolean)) {
+        y += 3.4;
+        pdf.text(String(line), textLeft, y);
+    }
+
+    // Judul + nomor nota di kanan.
+    setFont(pdf, 11, 'bold', [75, 85, 99]);
+    pdf.text(String(title).toUpperCase(), PDF.right, top + 4, { align: 'right' });
+    setFont(pdf, 10, 'bold', [17, 24, 39]);
+    pdf.text(String(invoice ?? ''), PDF.right, top + 9.5, { align: 'right' });
+    if (badge) {
+        const label = String(badge.label);
+        setFont(pdf, 6.5, 'bold', badge.cls === 'badge-paid' ? [6, 95, 70] : [146, 64, 14]);
+        const tw = pdf.getTextWidth(label) + 5;
+        const bx = PDF.right - tw;
+        const by = top + 12;
+        pdf.setFillColor(...(badge.cls === 'badge-paid' ? [209, 250, 229] : [254, 243, 199]));
+        pdf.roundedRect(bx, by, tw, 4.4, 2.2, 2.2, 'F');
+        pdf.text(label, bx + tw / 2, by + 3.1, { align: 'center' });
+    }
+
+    y = Math.max(y, top + 14) + 3;
+    pdf.setDrawColor(17, 24, 39);
+    pdf.setLineWidth(0.6);
+    pdf.line(PDF.left, y, PDF.right, y);
+    return y + 5;
+}
+
+/** Dua kolom pasangan label–nilai (kembali ke bawah setelah isi kolom selesai). */
+function drawPairs(pdf, pairs, y) {
+    const gap = 8;
+    const colW = (PDF.widthInner - gap) / 2;
+    let maxY = y;
+    pairs.forEach((row, i) => {
+        if (!row) return;
+        const col = i % 2;
+        const lineIdx = Math.floor(i / 2);
+        const x = PDF.left + col * (colW + gap);
+        const ry = y + lineIdx * 5.2;
+        setFont(pdf, 7.5, 'normal', [107, 114, 128]);
+        pdf.text(row[0], x, ry);
+        setFont(pdf, 7.5, 'normal', [17, 24, 39]);
+        const value = pdf.splitTextToSize(String(row[1]), colW * 0.6)[0] ?? '';
+        pdf.text(value, x + colW, ry, { align: 'right' });
+        pdf.setDrawColor(229, 231, 235);
+        pdf.setLineWidth(0.2);
+        pdf.setLineDashPattern([0.6, 0.8], 0);
+        pdf.line(x, ry + 1.5, x + colW, ry + 1.5);
+        maxY = Math.max(maxY, ry + 3);
+    });
+    return maxY + 1;
+}
+
+/**
+ * Tabel item nota.
+ * @param {object[]} columns [{ label, width, align, render(item, i) }]
+ */
+function drawTable(pdf, { columns, rows, y, headerBg = [243, 244, 246] }) {
+    const rowPadY = 2;
+    const rowPadX = 1.8;
+    const headerH = 6.5;
+
+    // Header
+    pdf.setFillColor(...headerBg);
+    pdf.rect(PDF.left, y, PDF.widthInner, headerH, 'F');
+    setFont(pdf, 6.5, 'bold', [107, 114, 128]);
+    let x = PDF.left;
+    for (const col of columns) {
+        const tx = col.align === 'right' ? x + col.width - rowPadX : x + rowPadX;
+        pdf.text(String(col.label).toUpperCase(), tx, y + 4.3, { align: col.align ?? 'left' });
+        x += col.width;
+    }
+    y += headerH;
+    pdf.setDrawColor(209, 213, 219);
+    pdf.setLineWidth(0.25);
+    pdf.line(PDF.left, y, PDF.right, y);
+
+    rows.forEach((row, i) => {
+        const cells = columns.map((col) => {
+            const raw = col.render ? col.render(row, i) : row[col.key];
+            const w = col.width - rowPadX * 2;
+            const lines = col.wrap === false ? [String(raw ?? '')] : wrapText(pdf, raw, w);
+            return { col, lines };
+        });
+        const rowH = Math.max(...cells.map((c) => c.lines.length)) * 4 + rowPadY * 2;
+
+        if (y + rowH > PAGE_MM - PDF.padY) {
+            pdf.addPage([PDF.width, PAGE_MM], 'landscape');
+            y = PDF.padY;
+        }
+
+        x = PDF.left;
+        for (const { col, lines } of cells) {
+            const tx = col.align === 'right' ? x + col.width - rowPadX : x + rowPadX;
+            lines.forEach((line, li) => {
+                setFont(pdf, col.size ?? 7.5, col.style ?? 'normal', col.color ?? [17, 24, 39]);
+                pdf.text(line, tx, y + rowPadY + 3 + li * 4, { align: col.align ?? 'left' });
+            });
+            x += col.width;
+        }
+
+        y += rowH;
+        pdf.setDrawColor(238, 240, 243);
+        pdf.setLineWidth(0.2);
+        pdf.line(PDF.left, y, PDF.right, y);
+    });
+
+    return y;
+}
+
+function drawTotals(pdf, rows, y) {
+    const w = 78;
+    const x = PDF.right - w;
+    y += 5;
+    rows.forEach(([label, value, isGrand]) => {
+        if (isGrand) {
+            pdf.setDrawColor(17, 24, 39);
+            pdf.setLineWidth(0.4);
+            pdf.line(x, y - 1.5, PDF.right, y - 1.5);
+            setFont(pdf, 10, 'bold', [17, 24, 39]);
+            pdf.text(label, x, y + 4);
+            pdf.text(String(value), PDF.right, y + 4, { align: 'right' });
+            y += 7;
+            return;
+        }
+        setFont(pdf, 7.5, 'normal', [55, 65, 81]);
+        pdf.text(label, x, y + 2.5);
+        pdf.text(String(value), PDF.right, y + 2.5, { align: 'right' });
+        y += 5;
+    });
+    return y;
+}
+
+function drawNotes(pdf, text, y) {
+    if (!text) return y;
+    const lines = wrapText(pdf, text, PDF.widthInner - 6);
+    const h = lines.length * 3.8 + 4;
+    pdf.setFillColor(249, 250, 251);
+    pdf.roundedRect(PDF.left, y + 2, PDF.widthInner, h, 1.5, 1.5, 'F');
+    setFont(pdf, 7.2, 'normal', [55, 65, 81]);
+    lines.forEach((line, i) => pdf.text(line, PDF.left + 3, y + 2 + 4 + i * 3.8));
+    return y + h + 2;
+}
+
+function drawFoot(pdf, store, y, { bullets = null, bullet = false, withNotes = true } = {}) {
+    y += 8;
+    if (y > PDF.height - PDF.padY - 5) {
+        pdf.addPage([PDF.width, PAGE_MM], 'landscape');
+        y = PDF.padY + 8;
+    }
+    pdf.setDrawColor(209, 213, 219);
+    pdf.setLineWidth(0.2);
+    pdf.setLineDashPattern([1, 1], 0);
+    pdf.line(PDF.left, y, PDF.right, y);
+    pdf.setLineDashPattern([], 0);
+
+    y += 5;
+    setFont(pdf, 7.5, 'normal', [107, 114, 128]);
+    const footerLines = wrapText(pdf, store.footer ?? 'Terima kasih', PDF.widthInner);
+    footerLines.forEach((line) => {
+        pdf.text(line, PDF.width / 2, y, { align: 'center' });
+        y += 3.8;
+    });
+
+    if (!withNotes) return y;
+
+    const notes = bullets ?? SALE_FOOTER_NOTES;
+    setFont(pdf, 6, 'normal', [156, 163, 175]);
+    if (bullet) {
+        // Butir ringkas: rata kiri dengan tanda •.
+        notes.forEach((line) => {
+            for (const [i, row] of wrapText(pdf, line, PDF.widthInner - 4).entries()) {
+                pdf.text(i === 0 ? `•  ${row}` : `    ${row}`, PDF.left, y + 1.5);
+                y += 3;
+            }
+        });
+    } else {
+        notes.forEach((line) => {
+            for (const row of wrapText(pdf, line, PDF.widthInner)) {
+                pdf.text(row, PDF.width / 2, y + 1.5, { align: 'center' });
+                y += 3;
+            }
+        });
+    }
+    return y;
+}
+
+/**
+ * Susun dokumen: tinggi kertas = tinggi isi (bukan A4 penuh), jadi di layar HP
+ * nota langsung muat tanpa geser/terpotong.
+ * jsPDF tidak bisa mengubah ukuran halaman setelah digambar, jadi render
+ * pertama hanya mengukur, lalu render ulang dengan format [lebar, tinggi isi].
+ * Nota kepanjangan dipotong ke beberapa halaman yang tingginya sama.
+ */
+async function loadLogoDataUrl() {
+    if (PDF.logo !== undefined) return PDF.logo;
+    try {
+        const res = await fetch('/icons/icon-512.png');
+        if (!res.ok) throw new Error(`logo ${res.status}`);
+        const blob = await res.blob();
+        // FileReader tidak ada di semua runtime (mis. SSR/test); pakai keduanya.
+        PDF.logo = typeof FileReader === 'undefined'
+            ? `data:${blob.type || 'image/png'};base64,${btoa(String.fromCharCode(...new Uint8Array(await blob.arrayBuffer())))}`
+            : await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+    } catch {
+        PDF.logo = null;
+    }
+    return PDF.logo;
+}
+
+/** Logo toko untuk kop PDF: PNG data URL dari public/icons, atau null. */
+export function warmReceiptLogo() {
+    return loadLogoDataUrl();
+}
+
+async function buildWithContentHeight(paint) {
+    const { jsPDF } = await import('jspdf');
+    initPdfLayout();
+    await loadLogoDataUrl();
+
+    const make = (heightMm) => new jsPDF({ unit: 'mm', format: [PDF.width, heightMm], orientation: 'landscape', compress: true });
+
+    PDF.height = PAGE_MM;
+    const bottom = paint(make(PAGE_MM));
+
+    const contentMm = Math.min(Math.ceil(bottom + PDF.padY), PAGE_MM);
+    PDF.height = contentMm;
+    const pdf = make(contentMm);
+    paint(pdf);
+    return pdf;
+}
+
+function pdfBlob(pdf, name) {
+    if (!pdf || typeof pdf.output !== 'function') return null;
+    const base = String(name ?? 'nota').replace(/\.pdf$/i, '').replace(/[^\w.-]+/g, '-').replace(/^-|-$/g, '') || 'nota';
+    const filename = `${base}.pdf`;
+    return { blob: pdf.output('blob'), filename };
+}
+
+/**
+ * Nama file nota: "NAMACUSTOM-INVOICE.pdf" (mis. JOKO-INV261018-04.pdf).
+ */
+export function receiptFilename(customerName, invoice) {
+    const customer = String(customerName ?? '')
+        .normalize('NFKD').replace(/[^\x00-\x7F]/g, '')
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, '')
+        || 'CUSTOMER';
+    const number = String(invoice ?? 'NOTA')
+        .normalize('NFKD').replace(/[^\x00-\x7F]/g, '')
+        .toUpperCase()
+        .replace(/[^A-Z0-9-]+/g, '-')
+        .replace(/^-|-$/g, '')
+        || 'NOTA';
+
+    return `${customer}-${number}`;
+}
+
+// Kepala dokumen HTML (dipakai tombol Cetak).
 export function storeHead({ store = {}, title = '', invoice = '', badge = null }) {
-    const logoHtml = `<img src="/icons/icon-192.png" alt="logo"
+    const logoHtml = `<img src="/icons/icon-512.png" alt="logo"
         style="width:40px;height:40px;object-fit:contain;border-radius:8px;margin-right:8px;flex-shrink:0;" />`;
 
     return `<div class="doc-head">
@@ -100,12 +429,25 @@ export function storeHead({ store = {}, title = '', invoice = '', badge = null }
     </div>`;
 }
 
-export function storeFoot(store = {}) {
+export const SALE_FOOTER_NOTES = [
+    'Garansi hangus jika terjadi human error / kesalahan pengguna.',
+    'Tidak ada pengembalian uang atau barang untuk barang yang sudah dibeli.',
+];
+
+export const SERVICE_FOOTER_NOTES = [
+    'Garansi dengan kerusakan yg sama 1 bln.',
+    'Garansi berlaku selama tidak terjadi human error / kesalahan pengguna.',
+    'Tidak ada pengembalian uang untuk Servisan yang sudah selesai.',
+    'Servisan selesai/cancel yang tidak diambil lebih dari 60 hari di luar tanggung jawab kami.',
+];
+
+export function storeFoot(store = {}, { notes = SALE_FOOTER_NOTES, bullet = false } = {}) {
+    const body = notes.map((line) => (bullet ? `• ${esc(line)}` : esc(line))).join('<br>');
+
     return `<div class="foot">
         <div>${esc(store.footer ?? 'Terima kasih')}</div>
-        <div style="margin-top:4px;font-size:8px;color:#9ca3af;line-height:1.5;">
-            Garansi berlaku selama tidak ada indikasi Human Error / Kesalahan Pengguna.<br>
-            Tidak ada pengembalian barang / uang untuk barang yang sudah dibeli.
+        <div style="margin-top:4px;font-size:8px;color:#9ca3af;line-height:1.5;${bullet ? 'text-align:left;' : ''}">
+            ${body}
         </div>
     </div>`;
 }
@@ -152,7 +494,7 @@ function itemTable(items, { showDiscount }) {
     </table>`;
 }
 
-// Isi nota penjualan/pembelian.
+// Isi nota penjualan/pembelian (HTML, untuk Cetak).
 export function saleBody({ store = {}, sale, title = 'NOTA PENJUALAN' }) {
     if (!sale) return '';
 
@@ -201,6 +543,121 @@ export function saleBody({ store = {}, sale, title = 'NOTA PENJUALAN' }) {
 }
 
 /**
+ * Nota penjualan / pembelian → PDF vector.
+ * @returns {Promise<{ blob: Blob, filename: string }>}
+ */
+export async function buildSaleReceiptPdf({ store = {}, sale, title = 'NOTA PENJUALAN', filename } = {}) {
+    if (!sale) return null;
+    const paint = (pdf) => {
+
+        const items = sale.sale_items || sale.items || [];
+        const isPaid = sale.payment_status ? sale.payment_status === 'lunas' : true;
+        const isPurchase = sale.supplier !== undefined;
+        const itemDiscount = items.reduce((sum, li) => sum + (Number(li.discount) || 0), 0);
+        const headerDiscount = Number(sale.header_discount) || 0;
+
+        let y = drawHead(pdf, {
+            store,
+            title,
+            invoice: sale.invoice_no ?? sale.reference_no ?? '',
+            badge: sale.payment_status ? { label: isPaid ? 'LUNAS' : 'BELUM LUNAS', cls: isPaid ? 'badge-paid' : 'badge-due' } : null,
+        });
+
+        y = drawPairs(pdf, [
+            ['Tanggal', formatDate(sale.created_at)],
+            ['Kasir', sale.user?.name ?? sale.cashier ?? '-'],
+            [isPurchase ? 'Supplier' : 'Customer', sale.customer?.name ?? sale.supplier ?? 'Umum'],
+            ...((sale.customer?.phone ?? sale.supplier_phone) ? [['Telepon', sale.customer?.phone ?? sale.supplier_phone]] : []),
+            ['Pembayaran', sale.payment_method ?? '-'],
+            ...(sale.buy_from_reference ? [['No. Nota Supplier', sale.buy_from_reference]] : []),
+            ...(sale.paid_at ? [['Dibayar', formatDate(sale.paid_at)]] : []),
+            sale.dp_amount ? ['DP', money(sale.dp_amount)] : null,
+        ].filter(Boolean), y);
+
+        const showDiscount = Number(sale.discount) > 0 || items.some((li) => Number(li.discount) > 0) || headerDiscount > 0;
+        const cols = [
+            { label: '#', width: 8, align: 'left', color: [156, 163, 175], render: (_, i) => i + 1 },
+            {
+                label: 'Barang',
+                width: showDiscount ? 82 : 96,
+                render: (li) => li.item_name ?? li.name ?? '',
+                style: 'bold',
+            },
+            { label: 'Qty', width: 12, align: 'right', render: (li) => li.quantity ?? li.qty ?? 0 },
+            { label: 'Harga', width: 26, align: 'right', render: (li) => num(li.price ?? li.buy_price ?? 0) },
+            showDiscount && { label: 'Diskon', width: 24, align: 'right', render: (li) => (Number(li.discount) > 0 ? `- ${num(li.discount)}` : '-') },
+            {
+                label: 'Subtotal', width: 0, align: 'right', style: 'bold',
+                render: (li) => num(li.subtotal ?? (li.quantity ?? li.qty ?? 0) * (li.price ?? li.buy_price ?? 0)),
+            },
+        ].filter(Boolean);
+        cols[cols.length - 1].width = PDF.widthInner - cols.slice(0, -1).reduce((sum, c) => sum + c.width, 0);
+
+        y = drawTable(pdf, { columns: cols, rows: items, y: y + 1 });
+
+        const totals = [
+            ['Subtotal', money(sale.subtotal)],
+            itemDiscount > 0 ? ['Diskon item', `- ${money(itemDiscount)}`] : null,
+            Number(sale.discount) > 0 ? ['Diskon', `- ${money(sale.discount)}`] : null,
+            headerDiscount > 0 ? ['Diskon khusus', `- ${money(headerDiscount)}`] : null,
+            ['TOTAL', money(sale.total), true],
+        ].filter(Boolean);
+        y = drawTotals(pdf, totals, y);
+
+        y = drawNotes(pdf, sale.notes ? `Catatan: ${sale.notes}` : '', y);
+        y = drawFoot(pdf, store, y, { bullets: SALE_FOOTER_NOTES });
+
+    return y + 2;
+    };
+
+    const pdf = await buildWithContentHeight(paint);
+    return pdfBlob(pdf, filename ?? title);
+}
+
+/**
+ * Nota servis → PDF vector.
+ * @returns {Promise<{ blob: Blob, filename: string }>}
+ */
+export async function buildServiceReceiptPdf({ store = {}, reparation, items = [], total = 0, paid = false, filename } = {}) {
+    if (!reparation) return null;
+    const paint = (pdf) => {
+
+        let y = drawHead(pdf, { store, title: 'NOTA SERVIS', invoice: reparation.invoice ?? '' });
+
+        y = drawPairs(pdf, [
+            ['Tanggal', formatDate(reparation.created_at)],
+            ['Customer', reparation.customer_name ?? 'Umum'],
+            ['Telepon', reparation.customer_phone ?? '-'],
+            ['Status', reparation.status ?? '-'],
+        ], y);
+
+        const cols = [
+            { label: '#', width: 8, align: 'left', color: [156, 163, 175], render: (_, i) => i + 1 },
+            { label: 'Kendala', width: PDF.widthInner - 8 - 34, render: (item) => item.label ?? '', style: 'bold' },
+            {
+                label: 'Biaya', width: 34, align: 'right',
+                render: (item) => (Number(item.cost) > 0 ? money(item.cost) : '-'),
+            },
+        ];
+        y = drawTable(pdf, { columns: cols, rows: items, y: y + 1 });
+
+        y = drawTotals(pdf, [
+            ['Pembayaran', paid ? 'Lunas' : 'Belum lunas'],
+            ['TOTAL', money(total), true],
+        ], y);
+
+        y = drawFoot(pdf, store, y, { bullet: true, bullets: SERVICE_FOOTER_NOTES });
+
+    return y + 2;
+    };
+
+    const pdf = await buildWithContentHeight(paint);
+    return pdfBlob(pdf, filename);
+}
+
+// ===================== Print (HTML, ukuran mengikuti isi) =====================
+
+/**
  * Buka window nota, ukur tinggi isi, set kertas, lalu print.
  * @param {object} opts
  * @param {string} opts.title     judul window / nama file PDF
@@ -229,10 +686,45 @@ export function printReceiptHtml({ title = 'Nota', body = '', widthMm = DEFAULT_
 }
 
 /**
- * @param {object}  opts
- * @param {object}  opts.store  { name, address, phone, footer }
- * @param {object}  opts.sale   objek penjualan/pembelian
- * @param {string}  [opts.title='NOTA PENJUALAN']
+ * Buka WhatsApp dengan teks siap kirim. PDF sudah diunduh lebih dulu, jadi
+ * user tinggal tempel lampiran (clip → dokumen) di chat yang terbuka.
+ * Router WA: nomor tujuan di path segment pertama; teks di query `text`.
+ */
+export function openWhatsapp(phone, message = '') {
+    const digits = String(phone ?? '').replace(/\D/g, '');
+    const number = digits.startsWith('0') ? `62${digits.slice(1)}` : digits;
+    if (!number) return false;
+
+    const text = message ? `?text=${encodeURIComponent(message)}` : '';
+    // Paksa buka di tab baru (bukan popup yang bisa diblokir browser).
+    const opened = window.open(`https://wa.me/${number}${text}`, '_blank');
+
+    if (!opened) {
+        // Popup diblokir (biasanya setelah proses async panjang): buka di tab aktif.
+        window.location.assign(`https://wa.me/${number}${text}`);
+    }
+
+    return true;
+}
+
+/**
+ * Kirim nota: PDF dibuat → diunduh → chat WhatsApp nomor customer dibuka.
+ * @returns {Promise<boolean>} false bila nomor tidak valid.
+ */
+export async function sendReceiptToWhatsapp({ pdf, phone, message = '', filename }) {
+    if (!phone) return false;
+
+    const { blob, filename: name } = pdf ?? {};
+    if (!blob) return false;
+
+    downloadBlob(blob, filename ?? name);
+
+    // Buka chat setelah file mulai diunduh; di mobile download berjalan di latar.
+    return openWhatsapp(phone, message);
+}
+
+/**
+ * Cetak nota penjualan / pembelian (HTML).
  */
 export function printReceipt({ store = {}, sale, title = 'NOTA PENJUALAN' }) {
     if (!sale) return;
@@ -240,51 +732,6 @@ export function printReceipt({ store = {}, sale, title = 'NOTA PENJUALAN' }) {
         title: sale.invoice_no ?? sale.reference_no ?? 'Nota',
         body: saleBody({ store, sale, title }),
     });
-}
-
-// Pasang dokumen di luar layar, siap dijepret html2canvas.
-function mountOffscreen(body, widthMm) {
-    const holder = document.createElement('div');
-    holder.style.cssText = 'position:fixed;left:-99999px;top:0;background:#fff;';
-    const style = document.createElement('style');
-    style.textContent = PAPER_CSS;
-    const doc = document.createElement('div');
-    doc.style.width = `${widthMm}mm`;
-    doc.innerHTML = body;
-    holder.append(style, doc);
-    document.body.appendChild(holder);
-    // lastElementChild = div dokumen (bukan <style>).
-    return { holder, target: doc };
-}
-
-/**
- * Render nota jadi PDF (lebar A4, tinggi ikut isi).
- * @returns {Promise<{ blob: Blob, filename: string }>}
- */
-export async function buildReceiptPdf({ title = 'Nota', body = '', widthMm = DEFAULT_WIDTH_MM, filename } = {}) {
-    const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
-        import('html2canvas'),
-        import('jspdf'),
-    ]);
-
-    const { holder, target } = mountOffscreen(body, widthMm);
-    try {
-        await document.fonts?.ready;
-        const canvas = await html2canvas(target, {
-            backgroundColor: '#ffffff', scale: 2, logging: false,
-        });
-
-        const heightMm = (canvas.height / canvas.width) * widthMm;
-        const pdf = new jsPDF({ unit: 'mm', format: [widthMm, heightMm], orientation: 'portrait' });
-        pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, widthMm, heightMm);
-
-        return {
-            blob: pdf.output('blob'),
-            filename: filename ?? `${String(title).toLowerCase().replace(/\s+/g, '-')}.pdf`,
-        };
-    } finally {
-        holder.remove();
-    }
 }
 
 export function downloadBlob(blob, filename) {

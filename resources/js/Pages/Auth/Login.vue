@@ -69,7 +69,7 @@ const error = ref('');
             <!-- Branding -->
             <div class="mb-9 flex flex-col items-center text-center">
                 <div class="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-500/15 ring-1 ring-indigo-400/30">
-                    <img src="/icons/icon-192.png" alt="RTech App" class="h-10 w-10 rounded-xl object-contain" />
+                    <img src="/icons/icon-512.png" alt="RTech App" class="h-10 w-10 rounded-xl object-contain" />
                 </div>
                 <h1 class="text-2xl font-bold tracking-tight">{{ store.name ?? 'RTech App' }}</h1>
                 <p class="mt-1.5 text-sm text-gray-400">Masuk untuk mengelola kasir &amp; stok toko</p>

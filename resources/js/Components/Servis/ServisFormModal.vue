@@ -232,18 +232,18 @@ const labelClass = 'block text-sm font-medium text-gray-700 dark:text-gray-300 m
 
             <div>
                 <label :class="labelClass">Keluhan / Kendala <span class="text-red-500">*</span></label>
-                <AppTagInput v-model="form.complaint" :error="!!errors.complaint" placeholder="Contoh: Tidak bisa booting (Enter untuk menambah)" />
+                <AppTagInput v-model="form.complaint" :error="!!errors.complaint" placeholder="Contoh: Tidak bisa booting (ketik lalu tekan + atau Enter)" />
                 <p v-if="errors.complaint" class="mt-1.5 text-xs text-red-500">{{ errors.complaint }}</p>
             </div>
 
             <div>
                 <label :class="labelClass">Kondisi fisik</label>
-                <AppTagInput v-model="form.condition" placeholder="Contoh: Baret di layar (Enter untuk menambah)" />
+                <AppTagInput v-model="form.condition" placeholder="Contoh: Baret di layar (ketik lalu tekan + atau Enter)" />
             </div>
 
             <div>
                 <label :class="labelClass">Aksesoris dibawa</label>
-                <AppTagInput v-model="form.accessories" placeholder="Contoh: Charger, Tas (Enter untuk menambah)" />
+                <AppTagInput v-model="form.accessories" placeholder="Contoh: Charger, Tas (ketik lalu tekan + atau Enter)" />
             </div>
 
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">

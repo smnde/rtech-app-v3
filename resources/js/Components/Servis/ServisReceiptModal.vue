@@ -1,10 +1,10 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Loader2, Printer, Send } from 'lucide-vue-next';
 import AppModal from '@/Components/UI/AppModal.vue';
 import { useToast } from '@/composables/useToast';
-import { openWhatsapp, waNumber } from '@/lib/whatsapp';
-import { buildReceiptPdf, downloadBlob, printReceiptHtml, shareBlob, storeHead, storeFoot } from '@/lib/receipt';
+import { waNumber } from '@/lib/whatsapp';
+import { buildServiceReceiptPdf, printReceiptHtml, receiptFilename, sendReceiptToWhatsapp, storeHead, storeFoot, SERVICE_FOOTER_NOTES, warmReceiptLogo } from '@/lib/receipt';
 
 const props = defineProps({
     show:       { type: Boolean, default: false },
@@ -15,6 +15,10 @@ const props = defineProps({
 
 const emit = defineEmits(['close']);
 const toast = useToast();
+
+// Muat logo sekali di awal supaya sudah siap saat kirim.
+warmReceiptLogo();
+watch(() => props.show, (v) => { if (v) warmReceiptLogo(); });
 
 const FLAG_LABELS = { HW: 'Hardware', SW: 'Software', MB: 'Mainboard' };
 
@@ -85,7 +89,7 @@ const receiptBody = computed(() => {
             <div class="row grand"><span>Total</span><span>${formatRupiah(total.value)}</span></div>
         </div>
 
-        ${storeFoot(s)}`;
+        ${storeFoot(s, { notes: SERVICE_FOOTER_NOTES, bullet: true })}`;
 });
 
 const doPrint = () => {
@@ -96,7 +100,7 @@ const doPrint = () => {
 
 const sending = ref(false);
 
-// Sama seperti nota penjualan: PDF dulu, lalu share sheet (mobile) atau unduh + buka chat.
+// Sama seperti nota penjualan: PDF → unduh → buka chat WhatsApp customer.
 const sendWa = async () => {
     const r = props.reparation;
     if (!waNumber(r?.customer_phone)) {
@@ -106,21 +110,19 @@ const sendWa = async () => {
 
     sending.value = true;
     try {
-        const { blob, filename } = await buildReceiptPdf({
-            title: 'Nota Servis',
-            body: receiptBody.value,
-            filename: `${r.invoice || 'nota-servis'}.pdf`,
+        const pdf = await buildServiceReceiptPdf({
+            store: props.store,
+            reparation: r,
+            items: confirmedItems.value,
+            total: total.value,
+            paid: r.payment_status === 'paid',
+            filename: receiptFilename(r.customer_name, r.invoice),
         });
-        if (await shareBlob(blob, filename, props.waText)) {
-            toast.success('Nota PDF dibagikan.');
-        } else {
-            downloadBlob(blob, filename);
-            openWhatsapp(r.customer_phone, props.waText);
-            toast.success('Nota PDF diunduh — lampirkan di chat WhatsApp yang terbuka.');
-        }
+        await sendReceiptToWhatsapp({ pdf, phone: r.customer_phone, message: props.waText });
+        toast.success('Nota PDF diunduh — lampirkan di chat WhatsApp yang terbuka.');
         emit('close');
     } catch (e) {
-        if (e?.name !== 'AbortError') toast.error('Gagal membuat PDF nota.');
+        toast.error('Gagal membuat PDF nota.');
     } finally {
         sending.value = false;
     }

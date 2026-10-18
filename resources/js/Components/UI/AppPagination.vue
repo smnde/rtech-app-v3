@@ -14,6 +14,8 @@ const props = defineProps({
 const prevLink = computed(() => props.paginator.links?.[0]);
 const nextLink = computed(() => props.paginator.links?.[props.paginator.links.length - 1]);
 const pageLinks = computed(() => (props.paginator.links ?? []).slice(1, -1));
+const currentPage = computed(() => props.paginator.current_page ?? 1);
+const lastPage = computed(() => props.paginator.last_page ?? 1);
 </script>
 
 <template>
@@ -47,7 +49,7 @@ const pageLinks = computed(() => (props.paginator.links ?? []).slice(1, -1));
                     :is="link.url ? Link : 'span'"
                     :href="link.url"
                     :class="[
-                        'inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-xs font-medium transition-colors',
+                        'hidden sm:inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-xs font-medium transition-colors',
                         link.active
                             ? 'bg-primary-600 text-white dark:bg-primary-500'
                             : 'border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800',
@@ -56,6 +58,10 @@ const pageLinks = computed(() => (props.paginator.links ?? []).slice(1, -1));
                     v-html="link.label"
                 />
             </template>
+
+            <span class="inline-flex h-8 items-center px-2 text-xs font-medium tabular-nums text-gray-600 dark:text-gray-300 sm:hidden">
+                {{ currentPage }} / {{ lastPage }}
+            </span>
 
             <component
                 :is="nextLink?.url ? Link : 'span'"

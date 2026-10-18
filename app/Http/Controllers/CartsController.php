@@ -16,7 +16,7 @@ class CartsController extends Controller
 {
     public function show(Request $request, string $type): JsonResponse
     {
-        $cart = $this->activeCart($request, $type)->load(['customer:id,name', 'items']);
+        $cart = $this->activeCart($request, $type)->load(['customer:id,name', 'items.product']);
 
         return response()->json(['cart' => new CartResource($cart)]);
     }
@@ -29,7 +29,7 @@ class CartsController extends Controller
             ->where('user_id', $request->user()->id)
             ->where('type', $type)
             ->where('status', 'held')
-            ->with(['customer:id,name', 'items'])
+            ->with(['customer:id,name', 'items.product'])
             ->latest()
             ->get();
 

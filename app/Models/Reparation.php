@@ -81,9 +81,17 @@ class Reparation extends Model
 
     /**
      * Total biaya dari item di semua tahap yang sudah dikonfirmasi.
+     * Hitung dari relasi yang sudah dimuat agar tidak query per baris.
      */
     public function confirmedTotal(): float
     {
+        if ($this->relationLoaded('stages')) {
+            return (float) $this->stages
+                ->where('status', 'CONFIRMED')
+                ->flatMap(fn ($stage) => $stage->relationLoaded('items') ? $stage->items : [])
+                ->sum('cost');
+        }
+
         return (float) ReparationStageItem::query()
             ->whereHas('stage', fn ($query) => $query
                 ->where('reparation_id', $this->id)

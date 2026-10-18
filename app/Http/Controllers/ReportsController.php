@@ -19,8 +19,8 @@ class ReportsController extends Controller
 
         $sales = Sale::query()
             ->with(['details' => fn ($q) => $q->where('qty', '>', 0)->with('item:id,name')])
-            ->whereDate('created_at', '>=', $from)
-            ->whereDate('created_at', '<=', $to)
+            ->where('created_at', '>=', "{$from} 00:00:00")
+            ->where('created_at', '<=', "{$to} 23:59:59")
             ->latest()
             ->get();
 
@@ -52,8 +52,8 @@ class ReportsController extends Controller
         $reparations = Reparation::query()
             ->with(['stages.items', 'customer:id,name'])
             ->where('status', 'TAKEN')
-            ->whereDate('created_at', '>=', $from)
-            ->whereDate('created_at', '<=', $to)
+            ->where('created_at', '>=', "{$from} 00:00:00")
+            ->where('created_at', '<=', "{$to} 23:59:59")
             ->latest()
             ->get();
 
@@ -105,8 +105,8 @@ class ReportsController extends Controller
 
         $purchases = Purchase::query()
             ->with(['details' => fn ($q) => $q->where('qty', '>', 0)->with('item:id,name')])
-            ->whereDate('created_at', '>=', $from)
-            ->whereDate('created_at', '<=', $to)
+            ->where('created_at', '>=', "{$from} 00:00:00")
+            ->where('created_at', '<=', "{$to} 23:59:59")
             ->latest()
             ->get();
 
@@ -137,8 +137,8 @@ class ReportsController extends Controller
 
         $expenses = Expense::query()
             ->with('user:id,name')
-            ->whereDate('created_at', '>=', $from)
-            ->whereDate('created_at', '<=', $to)
+            ->where('created_at', '>=', "{$from} 00:00:00")
+            ->where('created_at', '<=', "{$to} 23:59:59")
             ->latest()
             ->get();
 
@@ -165,8 +165,8 @@ class ReportsController extends Controller
 
         $movements = StockMovement::query()
             ->with(['item', 'user:id,name'])
-            ->whereDate('movement_date', '>=', $from)
-            ->whereDate('movement_date', '<=', $to)
+            ->where('movement_date', '>=', $from)
+            ->where('movement_date', '<=', $to)
             ->latest()
             ->get();
 

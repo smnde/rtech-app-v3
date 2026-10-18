@@ -30,6 +30,7 @@ class DashboardController extends Controller
             ->with('supplier:id,name')
             ->select(self::LAPTOP_DETAIL_COLUMNS)
             ->latest('updated_at')
+            ->limit(100)
             ->get();
 
         $needPost = Laptop::query()
@@ -39,30 +40,47 @@ class DashboardController extends Controller
             ->with('supplier:id,name')
             ->select(self::LAPTOP_DETAIL_COLUMNS)
             ->latest('updated_at')
+            ->limit(100)
             ->get();
 
-        $today = now()->toDateString();
+        $today = now();
+        $todayStart = $today->copy()->startOfDay();
+        $todayEnd = $today->copy()->endOfDay();
 
-        $salesTodayTotal     = (float) Sale::query()->whereDate('created_at', $today)->sum('total');
-        $purchasesTodayTotal = (float) Purchase::query()->whereDate('created_at', $today)->sum('total');
-        $expensesTodayTotal  = (float) Expense::query()->whereDate('created_at', $today)->sum('amount');
+        // whereBetween (bukan whereDate) supaya indeks created_at tetap terpakai.
+        $salesToday = Sale::query()
+            ->whereBetween('created_at', [$todayStart, $todayEnd])
+            ->selectRaw('COUNT(*) as jumlah, COALESCE(SUM(total), 0) as total')
+            ->first();
 
-        $cashFlowIn = (float) CashFlow::where('type', 'in')->sum('amount');
-        $cashFlowOut = (float) CashFlow::where('type', 'out')->sum('amount');
+        $purchasesToday = Purchase::query()
+            ->whereBetween('created_at', [$todayStart, $todayEnd])
+            ->selectRaw('COUNT(*) as jumlah, COALESCE(SUM(total), 0) as total')
+            ->first();
 
-        $totalIncome = $cashFlowIn;
-        $totalOutcome = $cashFlowOut;
+        $expensesTodayTotal = (float) Expense::query()
+            ->whereBetween('created_at', [$todayStart, $todayEnd])
+            ->sum('amount');
+
+        $cashFlows = CashFlow::query()
+            ->selectRaw("COALESCE(SUM(CASE WHEN type = 'in' THEN amount END), 0) as masuk")
+            ->selectRaw("COALESCE(SUM(CASE WHEN type = 'out' THEN amount END), 0) as keluar")
+            ->first();
+
+        $stock = (int) (Laptop::sum('stock') + Gadget::sum('stock') + Accessory::sum('stock') + Sparepart::sum('stock'));
+
+        $balance = (float) $cashFlows->masuk - (float) $cashFlows->keluar;
 
         return Inertia::render('Dashboard', [
             'stats' => [
-                'sales_count_today' => Sale::query()->whereDate('created_at', $today)->count(),
-                'purchases_count_today' => Purchase::query()->whereDate('created_at', $today)->count(),
-                'income_today' => $salesTodayTotal,
-                'outcome_today' => $purchasesTodayTotal + $expensesTodayTotal,
-                'balance' => $totalIncome - $totalOutcome,
+                'sales_count_today' => (int) $salesToday->jumlah,
+                'purchases_count_today' => (int) $purchasesToday->jumlah,
+                'income_today' => (float) $salesToday->total,
+                'outcome_today' => (float) $purchasesToday->total + $expensesTodayTotal,
+                'balance' => $balance,
                 'customers' => Customer::count(),
                 'servis' => Reparation::whereNotIn('status', ['DONE', 'TAKEN', 'CANCEL'])->count(),
-                'items' => (int) (Laptop::sum('stock') + Gadget::sum('stock') + Accessory::sum('stock') + Sparepart::sum('stock')),
+                'items' => $stock,
             ],
             'needPrice' => $needPrice,
             'needPost' => $needPost,

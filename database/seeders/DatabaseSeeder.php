@@ -77,34 +77,34 @@ class DatabaseSeeder extends Seeder
         ]);
         $user_mustafa->assignRole('ADMIN');
 
-        Brand::create(['name' => 'Asus']);
-        Brand::create(['name' => 'Acer']);
-        Brand::create(['name' => 'Apple']);
-        Brand::create(['name' => 'Huawei']);
-        Brand::create(['name' => 'HP']);
-        Brand::create(['name' => 'Dell']);
-        Brand::create(['name' => 'Infinix']);
-        Brand::create(['name' => 'Axioo']);
-        Brand::create(['name' => 'Acvan']);
-        Brand::create(['name' => 'Samsung']);
-        Brand::create(['name' => 'Lenovo']);
-        Brand::create(['name' => 'Zyrex']);
-        Brand::create(['name' => 'Techno']);
+        // Brand::create(['name' => 'Asus']);
+        // Brand::create(['name' => 'Acer']);
+        // Brand::create(['name' => 'Apple']);
+        // Brand::create(['name' => 'Huawei']);
+        // Brand::create(['name' => 'HP']);
+        // Brand::create(['name' => 'Dell']);
+        // Brand::create(['name' => 'Infinix']);
+        // Brand::create(['name' => 'Axioo']);
+        // Brand::create(['name' => 'Acvan']);
+        // Brand::create(['name' => 'Samsung']);
+        // Brand::create(['name' => 'Lenovo']);
+        // Brand::create(['name' => 'Zyrex']);
+        // Brand::create(['name' => 'Techno']);
 
-        Category::create(['name' => 'Keyboard']);
-        Category::create(['name' => 'LCD']);
-        Category::create(['name' => 'Baterai']);
-        Category::create(['name' => 'RAM']);
-        Category::create(['name' => 'SSD']);
-        Category::create(['name' => 'Hardisk']);
-        Category::create(['name' => 'Fan']);
+        // Category::create(['name' => 'Keyboard']);
+        // Category::create(['name' => 'LCD']);
+        // Category::create(['name' => 'Baterai']);
+        // Category::create(['name' => 'RAM']);
+        // Category::create(['name' => 'SSD']);
+        // Category::create(['name' => 'Hardisk']);
+        // Category::create(['name' => 'Fan']);
 
-        Supplier::create(['name' => 'Tegra']);
-        Supplier::create(['name' => 'Multi Tech']);
-        Supplier::create(['name' => 'Raja Computer']);
-        Supplier::create(['name' => 'Cipta Store']);
-        Supplier::create(['name' => 'Tiger Computer']);
-        Supplier::create(['name' => 'Mega Global']);
-        Supplier::create(['name' => 'Kuching']);
+        // Supplier::create(['name' => 'Tegra']);
+        // Supplier::create(['name' => 'Multi Tech']);
+        // Supplier::create(['name' => 'Raja Computer']);
+        // Supplier::create(['name' => 'Cipta Store']);
+        // Supplier::create(['name' => 'Tiger Computer']);
+        // Supplier::create(['name' => 'Mega Global']);
+        // Supplier::create(['name' => 'Kuching']);
     }
 }

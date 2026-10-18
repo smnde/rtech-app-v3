@@ -36,8 +36,8 @@ class PurchasesController extends Controller
             ->when($request->search, fn ($query, $search) => $query->where('invoice', 'like', "%{$search}%"))
             ->when($request->filled('status'), fn ($query) => $query->where('payment_status', $request->string('status')))
             ->when($request->filled('order_status'), fn ($query) => $query->where('status', $request->string('order_status')))
-            ->whereDate('created_at', '>=', $from)
-            ->whereDate('created_at', '<=', $to)
+            ->where('created_at', '>=', "{$from} 00:00:00")
+            ->where('created_at', '<=', "{$to} 23:59:59")
             ->latest()
             ->paginate(10)
             ->withQueryString();
@@ -56,12 +56,12 @@ class PurchasesController extends Controller
 
     public function create(Request $request): Response
     {
-        $cart = Cart::activeFor($request->user(), 'purchase')->load(['customer:id,name', 'items']);
+        $cart = Cart::activeFor($request->user(), 'purchase')->load(['customer:id,name', 'items.product']);
         $heldCarts = Cart::query()
             ->where('user_id', $request->user()->id)
             ->where('type', 'purchase')
             ->where('status', 'held')
-            ->with(['customer:id,name', 'items'])
+            ->with(['customer:id,name', 'items.product'])
             ->latest()
             ->get();
 
@@ -284,6 +284,7 @@ class PurchasesController extends Controller
             }
 
             $stockItem->decrement('stock', $detail->qty);
+            StockMovementRecorder::syncStatus($stockItem);
         }
 
         StockMovement::query()->where('reference', $purchase->invoice)->delete();

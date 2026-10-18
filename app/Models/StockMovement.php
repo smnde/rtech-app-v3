@@ -21,6 +21,9 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 ])]
 class StockMovement extends Model
 {
+    /** Kolom movement_date bertipe date, simpan polos "Y-m-d". */
+    protected $dateFormat = 'Y-m-d';
+
     protected function casts(): array
     {
         return [

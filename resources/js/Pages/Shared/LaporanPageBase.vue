@@ -2,7 +2,6 @@
 import { computed, ref, watch } from 'vue';
 import { Head, router } from '@inertiajs/vue3';
 import { Download, FileDown } from 'lucide-vue-next';
-import { jsPDF } from 'jspdf';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import AppPageHeader from '@/Components/UI/AppPageHeader.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
@@ -45,7 +44,9 @@ const applyPeriod = () => {
 
 const formatRupiah = (v) => `Rp ${Number(v).toLocaleString('id-ID')}`;
 
-const exportToPdf = () => {
+const exportToPdf = async () => {
+    // jsPDF besar (~400 KB): muat saat tombol ditekan, bukan di awal halaman.
+    const { jsPDF } = await import('jspdf');
     const doc = new jsPDF({ orientation: 'landscape', unit: 'pt' });
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 32;

@@ -8,6 +8,7 @@ use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Sparepart;
 use App\Models\Supplier;
+use App\Support\StockHistory;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -59,7 +60,7 @@ class SparepartsController extends Controller
                 'supplier_name' => $sparepart->supplier?->name,
                 'category_name' => $sparepart->category?->name,
             ],
-            'history' => [],
+            'history' => StockHistory::forItem($sparepart),
         ]);
     }
 

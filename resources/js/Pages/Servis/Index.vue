@@ -364,7 +364,7 @@ const cardClass = 'rounded-xl border border-gray-200 dark:border-gray-800 bg-whi
 
             </AppTable>
 
-            <div class="scrollbar-styled scrollbar-mobile-hidden sm:hidden flex-1 min-h-0 overflow-y-auto space-y-3">
+            <div class="scrollbar-styled scrollbar-mobile-hidden sm:hidden flex-1 min-h-0 overflow-y-auto space-y-2 -mx-4 px-4 sm:mx-0">
                 <div v-if="rows.length === 0" class="flex flex-col items-center py-12 text-center">
                     <div class="mb-3 rounded-full bg-gray-100 dark:bg-gray-800 p-4">
                         <Wrench class="h-6 w-6 text-gray-400" />
@@ -376,38 +376,21 @@ const cardClass = 'rounded-xl border border-gray-200 dark:border-gray-800 bg-whi
                     v-for="item in rows"
                     :key="item.id"
                     :href="route('servis.show', item.id)"
-                    :class="[cardClass, 'block p-4 shadow-sm']"
+                    :class="[cardClass, 'block px-3 py-2.5']"
                 >
                     <div class="flex items-center justify-between gap-2">
-                        <p class="font-semibold text-gray-900 dark:text-white text-sm truncate">{{ item.item_name }}</p>
+                        <p class="min-w-0 truncate text-sm font-semibold text-gray-900 dark:text-white">{{ item.item_name }}</p>
                         <AppBadge :color="STATUS_COLOR[item.status] ?? 'gray'" size="sm">{{ item.status }}</AppBadge>
                     </div>
-                    <p class="mt-1 text-xs text-gray-500">{{ item.invoice ?? '—' }} · {{ item.customer_name }} · {{ item.created_at }}</p>
-                    <div class="mt-2 flex flex-wrap gap-1">
-                        <AppBadge v-for="flag in item.flag" :key="flag" color="blue" size="sm">{{ flag }}</AppBadge>
-                    </div>
-                    <p class="mt-1 text-xs text-gray-500">
-                        {{ (item.stages ?? []).flatMap((s) => s.items ?? []).map((i) => `${i.label}: ${Number(i.cost) > 0 ? `Rp ${Number(i.cost).toLocaleString('id-ID')}` : '-'}`).join(' · ') || 'Estimasi: —' }}
-                    </p>
-                    <div class="mt-2 flex flex-wrap items-center gap-2">
-                        <AppBadge :color="deadlineColor(deadlineFor(item).value)" size="sm">
+                    <p class="mt-0.5 truncate text-xs text-gray-500">{{ item.customer_name }} · {{ item.invoice ?? '—' }}</p>
+                    <div class="mt-1 flex items-center justify-between gap-2">
+                        <p class="min-w-0 truncate text-xs text-gray-400">
+                            <template v-if="item.flag?.length">{{ (item.flag ?? []).join(' · ') }}</template>
+                            <template v-else>—</template>
+                        </p>
+                        <span :class="['shrink-0 text-xs font-medium tabular-nums', deadlineColor(deadlineFor(item).value) === 'red' ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400']">
                             {{ formatDeadline(deadlineFor(item).value) }}
-                        </AppBadge>
-                    </div>
-                    <div class="mt-3 flex items-center justify-end gap-1 pt-3 border-t border-gray-100 dark:border-gray-800" @click.stop.prevent>
-                        <AppButton v-if="can('edit reparation') && item.status !== 'TAKEN' && item.status !== 'CANCEL'" variant="ghost" size="sm" icon-only title="Konfirmasi" @click="openConfirm(item)">
-                            <CheckCircle2 class="h-4 w-4" />
-                        </AppButton>
-                        <AppButton v-if="can('edit reparation')" variant="ghost" size="sm" icon-only title="Ubah Status" @click="openStatus(item)">
-                            <RefreshCw class="h-4 w-4" />
-                        </AppButton>
-                        <AppButton v-if="can('edit reparation')" variant="ghost" size="sm" icon-only @click="openEdit(item)">
-                            <Pencil class="h-4 w-4" />
-                        </AppButton>
-                        <AppButton v-if="can('delete reparation')" variant="ghost" size="sm" icon-only
-                            class="hover:!text-red-500 dark:hover:!text-red-400" @click="handleDelete(item)">
-                            <Trash2 class="h-4 w-4" />
-                        </AppButton>
+                        </span>
                     </div>
                 </Link>
             </div>

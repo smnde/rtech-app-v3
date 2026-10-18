@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\StockMovement;
 use App\Support\StockItem;
+use App\Support\StockMovementRecorder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,13 +18,13 @@ class StockMovementsController extends Controller
     public function index(Request $request): Response
     {
         $today = now()->toDateString();
-        $from  = $request->filled('from') ? $request->string('from')->toString() : $today;
-        $to    = $request->filled('to')   ? $request->string('to')->toString()   : $today;
+        $from = $request->filled('from') ? $request->string('from')->toString() : $today;
+        $to = $request->filled('to') ? $request->string('to')->toString() : $today;
 
         $movements = StockMovement::query()
             ->with(['item', 'user:id,name'])
-            ->whereDate('movement_date', '>=', $from)
-            ->whereDate('movement_date', '<=', $to)
+            ->where('movement_date', '>=', $from)
+            ->where('movement_date', '<=', $to)
             ->when($request->filled('type') && $request->string('type') !== 'all', fn ($query) => $query->where('type', $request->string('type')))
             ->when($request->filled('status') && $request->string('status') !== 'all', fn ($query) => $query->where('status', $request->string('status')))
             ->latest()
@@ -58,9 +59,9 @@ class StockMovementsController extends Controller
                     ]),
             )->values(),
             'filters' => [
-                'from'   => $from,
-                'to'     => $to,
-                'type'   => $request->input('type', 'all'),
+                'from' => $from,
+                'to' => $to,
+                'type' => $request->input('type', 'all'),
                 'status' => $request->input('status', 'all'),
             ],
         ]);
@@ -110,6 +111,8 @@ class StockMovementsController extends Controller
                 'reference' => $data['reference'] ?? null,
                 'notes' => $data['notes'] ?? null,
             ]);
+
+            StockMovementRecorder::syncStatus($stockItem);
         });
 
         return back()->with('success', 'Mutasi stok berhasil dicatat.');
@@ -146,6 +149,8 @@ class StockMovementsController extends Controller
 
             $stockItem->update(['stock' => $reversedStock]);
             $stockMovement->delete();
+
+            StockMovementRecorder::syncStatus($stockItem->refresh());
         });
 
         return back()->with('success', 'Mutasi stok dihapus dan stok dikembalikan.');

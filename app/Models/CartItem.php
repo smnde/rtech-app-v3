@@ -2,9 +2,9 @@
 
 namespace App\Models;
 
-use App\Support\StockItem;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 #[Fillable([
     'cart_id',
@@ -31,8 +31,8 @@ class CartItem extends Model
         return $this->belongsTo(Cart::class);
     }
 
-    public function product(): ?Model
+    public function product(): MorphTo
     {
-        return StockItem::modelFor($this->item_type)::query()->find($this->item_id);
+        return $this->morphTo('product', 'item_type', 'item_id');
     }
 }

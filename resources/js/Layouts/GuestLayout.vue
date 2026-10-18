@@ -31,7 +31,7 @@ const isDark = document.documentElement.classList.contains('dark');
                     isDark ? 'bg-indigo-500/20 ring-1 ring-indigo-500/30' : 'bg-white ring-1 ring-indigo-500/10',
                 ]"
             >
-                <img src="/icons/icon-192.png" alt="RTech App" class="h-9 w-9 rounded-lg" />
+                <img src="/icons/icon-512.png" alt="RTech App" class="h-12 w-12 rounded-xl" />
             </div>
             <div>
                 <h1 class="text-lg font-bold tracking-tight text-gray-900 dark:text-white">

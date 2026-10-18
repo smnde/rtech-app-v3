@@ -16,22 +16,46 @@
     ],
     "icons": [
         {
+            "src": "/icons/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/icons/icon-512-maskable.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
             "src": "/icons/icon-192.png",
             "sizes": "192x192",
             "type": "image/png",
             "purpose": "any"
+        }
+    ],
+    "screenshots": [],
+    "shortcuts": [
+        {
+            "name": "Dashboard",
+            "short_name": "Dashboard",
+            "description": "Lihat dashboard penjualan & stok",
+            "url": "/dashboard",
+            "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
         },
         {
-            "src": "/icons/icon-512.png",
-            "sizes": "512x512",
-            "type": "image/png",
-            "purpose": "any"
+            "name": "Penjualan",
+            "short_name": "Jual",
+            "description": "Buat transaksi penjualan baru",
+            "url": "/transaksi/penjualan/create",
+            "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
         },
         {
-            "src": "/icons/icon-512.png",
-            "sizes": "512x512",
-            "type": "image/png",
-            "purpose": "maskable"
+            "name": "Pembelian",
+            "short_name": "Beli",
+            "description": "Buat transaksi pembelian baru",
+            "url": "/transaksi/pembelian/create",
+            "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
         }
     ]
 }

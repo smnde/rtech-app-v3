@@ -93,6 +93,9 @@ const validate = () => {
     if (!String(form.value.warranty).trim()) e.warranty = 'Garansi wajib diisi.';
     if (!form.value.brand_id)                e.brand_id = 'Brand wajib dipilih.';
     if (!form.value.status)                  e.status = 'Status wajib dipilih.';
+    specFields.forEach((field) => {
+        if (!String(form.value.specification[field.key] ?? '').trim()) e[`specification.${field.key}`] = `${field.label} wajib diisi.`;
+    });
     if (!isEdit.value && (form.value.stock === '' || Number(form.value.stock) < 0)) e.stock = 'Stok wajib diisi (min. 0).';
     errors.value = e;
     return Object.keys(e).length === 0;
@@ -236,9 +239,10 @@ const labelClass = 'block text-sm font-medium text-gray-700 dark:text-gray-300 m
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div v-for="field in specFields" :key="field.key"
                         :class="field.key === 'display' ? 'sm:col-span-2' : ''">
-                        <label :class="labelClass">{{ field.label }}</label>
+                        <label :class="labelClass">{{ field.label }} <span class="text-red-500">*</span></label>
                         <input v-model="form.specification[field.key]" type="text" :placeholder="field.placeholder"
-                            :class="inputClass(false)" />
+                            :class="inputClass(!!errors[`specification.${field.key}`])" />
+                        <p v-if="errors[`specification.${field.key}`]" class="mt-1.5 text-xs text-red-500">{{ errors[`specification.${field.key}`] }}</p>
                     </div>
                 </div>
             </section>
@@ -247,11 +251,11 @@ const labelClass = 'block text-sm font-medium text-gray-700 dark:text-gray-300 m
             <section class="space-y-4 border-t border-gray-100 pt-5 dark:border-gray-800">
                 <div>
                     <label :class="labelClass">Aksesoris</label>
-                    <AppTagInput v-model="form.accessories" placeholder="Contoh: Charger, Tas (Enter untuk menambah)" />
+                    <AppTagInput v-model="form.accessories" placeholder="Contoh: Charger, Tas (ketik lalu tekan + atau Enter)" />
                 </div>
                 <div>
                     <label :class="labelClass">Fitur</label>
-                    <AppTagInput v-model="form.features" placeholder="Contoh: Backlit keyboard (Enter untuk menambah)" />
+                    <AppTagInput v-model="form.features" placeholder="Contoh: Backlit keyboard (ketik lalu tekan + atau Enter)" />
                 </div>
                 <div>
                     <label :class="labelClass">Catatan Kendala</label>
@@ -262,7 +266,7 @@ const labelClass = 'block text-sm font-medium text-gray-700 dark:text-gray-300 m
                             <span class="text-gray-400 line-through dark:text-gray-500">{{ issue.text }}</span>
                         </li>
                     </ul>
-                    <AppTagInput v-model="form.issue_notes" placeholder="Contoh: Keyboard rusak (Enter untuk menambah)" />
+                    <AppTagInput v-model="form.issue_notes" placeholder="Contoh: Keyboard rusak (ketik lalu tekan + atau Enter)" />
                     <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
                         Kendala yang sudah selesai dicentang di panel Kendala halaman detail.
                     </p>

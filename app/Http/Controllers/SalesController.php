@@ -33,8 +33,8 @@ class SalesController extends Controller
             ->with('customer:id,name')
             ->when($request->search, fn ($query, $search) => $query->where('invoice', 'like', "%{$search}%"))
             ->when($request->filled('status'), fn ($query) => $query->where('payment_status', $request->string('status')))
-            ->whereDate('created_at', '>=', $from)
-            ->whereDate('created_at', '<=', $to)
+            ->where('created_at', '>=', "{$from} 00:00:00")
+            ->where('created_at', '<=', "{$to} 23:59:59")
             ->latest()
             ->paginate(10)
             ->withQueryString();
@@ -52,12 +52,12 @@ class SalesController extends Controller
 
     public function create(Request $request): Response
     {
-        $cart = Cart::activeFor($request->user(), 'sale')->load(['customer:id,name', 'items']);
+        $cart = Cart::activeFor($request->user(), 'sale')->load(['customer:id,name', 'items.product']);
         $heldCarts = Cart::query()
             ->where('user_id', $request->user()->id)
             ->where('type', 'sale')
             ->where('status', 'held')
-            ->with(['customer:id,name', 'items'])
+            ->with(['customer:id,name', 'items.product'])
             ->latest()
             ->get();
 
@@ -190,7 +190,7 @@ class SalesController extends Controller
                     'subtotal' => $lineSubtotal,
                 ];
 
-                $movements[] = [$stockItem, $qty];
+                $movements[] = [$stockItem, $qty, (bool) ($item['is_bonus'] ?? false)];
             }
 
             $headerDiscount = (float) ($data['discount'] ?? 0);
@@ -219,11 +219,14 @@ class SalesController extends Controller
             }
 
             if ($data['payment_status'] !== 'keep') {
-                foreach ($movements as [$stockItem, $qty]) {
+                $isDebt = $data['payment_status'] === 'hutang';
+
+                foreach ($movements as [$stockItem, $qty, $isBonus]) {
                     $stockBefore = $stockItem->stock;
                     $stockItem->decrement('stock', $qty);
 
-                    StockMovementRecorder::record($stockItem, 'out', $qty, $stockBefore, 'TERJUAL', $request->user(), $sale->invoice);
+                    $status = $isBonus ? 'BONUS' : ($isDebt ? 'HUTANG' : 'TERJUAL');
+                    StockMovementRecorder::record($stockItem, 'out', $qty, $stockBefore, $status, $request->user(), $sale->invoice);
                 }
             }
 
@@ -273,7 +276,9 @@ class SalesController extends Controller
                     $sale->details->map(fn ($detail) => [
                         'stock_item' => $detail->item,
                         'qty' => (int) $detail->qty,
+                        'is_bonus' => (float) $detail->price <= 0,
                     ])->all(),
+                    $sale->payment_status === 'hutang' ? 'HUTANG' : 'TERJUAL',
                     $request->user(),
                     $sale->invoice,
                 );
@@ -313,6 +318,7 @@ class SalesController extends Controller
             }
 
             $stockItem->increment('stock', $detail->qty);
+            StockMovementRecorder::syncStatus($stockItem);
         }
 
         StockMovement::query()->where('reference', $sale->invoice)->delete();
@@ -321,7 +327,10 @@ class SalesController extends Controller
     /**
      * @param  list<array{stock_item: Model, qty: int}>  $lines
      */
-    private function recordOut(array $lines, Authenticatable $user, string $reference): void
+    /**
+     * @param  list<array{stock_item: Model, qty: int, is_bonus?: bool}>  $lines
+     */
+    private function recordOut(array $lines, string $defaultStatus, Authenticatable $user, string $reference): void
     {
         foreach ($lines as $line) {
             $stockItem = $line['stock_item'];
@@ -330,7 +339,8 @@ class SalesController extends Controller
             $stockBefore = $stockItem->stock;
             $stockItem->decrement('stock', $qty);
 
-            StockMovementRecorder::record($stockItem, 'out', $qty, $stockBefore, 'TERJUAL', $user, $reference);
+            $status = ($line['is_bonus'] ?? false) ? 'BONUS' : $defaultStatus;
+            StockMovementRecorder::record($stockItem, 'out', $qty, $stockBefore, $status, $user, $reference);
         }
     }
 }
