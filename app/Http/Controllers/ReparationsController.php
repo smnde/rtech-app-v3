@@ -12,32 +12,37 @@ use App\Models\Customer;
 use App\Models\Reparation;
 use App\Models\ReparationLog;
 use App\Models\ReparationStage;
+use App\Support\ReparationPayment;
 use App\Support\ReparationTracker;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Inertia\Response;
+use Throwable;
 
 class ReparationsController extends Controller
 {
     public function index(Request $request): Response
     {
-        $today = now()->toDateString();
-        $from  = $request->filled('from') ? $request->string('from')->toString() : $today;
-        $to    = $request->filled('to')   ? $request->string('to')->toString()   : $today;
+        $from = $request->filled('from') ? $request->string('from')->toString() : null;
+        $to = $request->filled('to') ? $request->string('to')->toString() : null;
 
         $reparations = Reparation::query()
-            ->with('customer:id,name,phone')
+            ->with(['customer:id,name,phone', 'stages.items'])
             ->when($request->search, fn ($query, $search) => $query->where(function ($query) use ($search) {
                 $query->where('item_name', 'like', "%{$search}%")
                     ->orWhereHas('customer', fn ($query) => $query->where('name', 'like', "%{$search}%"));
             }))
             ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
             ->when($request->filled('flag'), fn ($query) => $query->whereJsonContains('flag', $request->string('flag')->toString()))
-            ->whereDate('created_at', '>=', $from)
-            ->whereDate('created_at', '<=', $to)
+            ->when($request->filled('status') === false, fn ($query) => $query->whereNotIn('status', ['DONE', 'CANCEL']))
+            ->when($from, fn ($query) => $query->whereDate('created_at', '>=', $from))
+            ->when($to, fn ($query) => $query->whereDate('created_at', '<=', $to))
+            ->orderByRaw($this->activeDeadlineColumn().' IS NULL')
+            ->orderByRaw($this->activeDeadlineColumn().' ASC')
             ->latest()
             ->paginate(10)
             ->withQueryString();
@@ -49,11 +54,19 @@ class ReparationsController extends Controller
             'filters' => [
                 'search' => $request->search,
                 'status' => $request->status,
-                'flag'   => $request->flag,
-                'from'   => $from,
-                'to'     => $to,
+                'flag' => $request->flag,
+                'from' => $from,
+                'to' => $to,
             ],
         ]);
+    }
+
+    /**
+     * Deadline yang relevan: cek dulu saat belum diperiksa, lalu deadline proses setelahnya.
+     */
+    private function activeDeadlineColumn(): string
+    {
+        return "COALESCE(CASE WHEN status IN ('RECEIVED', 'CHECKED') THEN check_deadline_at END, process_deadline_at)";
     }
 
     public function store(StoreReparationRequest $request, ReparationTracker $tracker): RedirectResponse
@@ -85,11 +98,13 @@ class ReparationsController extends Controller
     {
         $data = $this->withTextDefaults($request->validated());
         $previousStatus = $reparation->status;
+        // Status wajib lewat tracker supaya total & kas servis ikut tercatat.
+        $data['status'] ??= $previousStatus;
 
-        $reparation->update($data);
+        $reparation->update(Arr::except($data, 'status'));
 
         if ($previousStatus !== $data['status']) {
-            $tracker->record($reparation, $request->user(), ReparationLog::EVENT_STATUS_CHANGED, from: $previousStatus, to: $data['status']);
+            $tracker->changeStatus($reparation, $request->user(), $data['status']);
         }
 
         return back()->with('success', 'Servis berhasil diperbarui.');
@@ -123,44 +138,88 @@ class ReparationsController extends Controller
         $data = $request->validated();
         $data['process_deadline_at'] = Carbon::parse($data['process_deadline_at']);
 
-        DB::transaction(function () use ($reparation, $data, $request, $tracker) {
-            $stage = ReparationStage::find($data['stage_id']);
+        try {
+            DB::transaction(function () use ($reparation, $data, $request, $tracker) {
+                $stage = $this->resolveStageForConfirmation($reparation, $data['stage_id'] ?? null);
 
-            $stage->items()->delete();
-            foreach ($data['items'] as $item) {
-                $stage->items()->create([
-                    'label' => $item['label'],
-                    'cost' => $item['cost'],
-                    'est_days' => $item['est_days'] ?? null,
+                $stage->items()->delete();
+                foreach ($data['items'] as $item) {
+                    $stage->items()->create([
+                        'label' => $item['label'],
+                        'cost' => $item['cost'],
+                        'est_days' => $item['est_days'] ?? null,
+                    ]);
+                }
+                $stage->update([
+                    'status' => 'CONFIRMED',
+                    'confirmed_at' => now(),
                 ]);
-            }
-            $stage->update([
-                'status' => 'CONFIRMED',
-                'confirmed_at' => now(),
-            ]);
 
-            $reparation->update([
-                'process_deadline_at' => $data['process_deadline_at'],
-                'status' => 'WAITING CONFIRMATION',
-            ]);
+                $previousStatus = $reparation->status;
 
-            $tracker->record(
-                $reparation,
-                $request->user(),
-                ReparationLog::EVENT_STATUS_CHANGED,
-                from: $reparation->status,
-                to: 'WAITING CONFIRMATION'
-            );
-        });
+                $reparation->update([
+                    'process_deadline_at' => $data['process_deadline_at'],
+                    'status' => 'WAITING CONFIRMATION',
+                ]);
+
+                $tracker->record(
+                    $reparation,
+                    $request->user(),
+                    ReparationLog::EVENT_STATUS_CHANGED,
+                    from: $previousStatus,
+                    to: 'WAITING CONFIRMATION',
+                    note: $data['note'] ?? null,
+                );
+            });
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return back()->with('error', 'Konfirmasi gagal disimpan: '.$exception->getMessage());
+        }
 
         return back()->with('success', 'Servis dikonfirmasi, menunggu konfirmasi customer.');
     }
 
+    private function resolveStageForConfirmation(Reparation $reparation, ?int $stageId): ReparationStage
+    {
+        if ($stageId) {
+            return $reparation->stages()->findOrFail($stageId);
+        }
+
+        return $reparation->stages()->latest('sequence')->first()
+            ?? $reparation->stages()->create(['sequence' => 1, 'status' => 'PENDING']);
+    }
+
     public function changeStatus(ChangeReparationStatusRequest $request, Reparation $reparation, ReparationTracker $tracker): RedirectResponse
     {
-        $tracker->changeStatus($reparation, $request->user(), $request->validated('status'), $request->validated('note'));
+        $paymentStatus = $request->validated('payment_status');
+
+        $tracker->changeStatus(
+            $reparation,
+            $request->user(),
+            $request->validated('status'),
+            $request->validated('note'),
+            $paymentStatus === null ? null : $paymentStatus === 'paid',
+        );
 
         return back()->with('success', 'Status servis diperbarui.');
+    }
+
+    public function markPaid(Request $request, Reparation $reparation): RedirectResponse
+    {
+        if ($reparation->isPaid()) {
+            return back()->with('error', 'Servis ini sudah lunas.');
+        }
+
+        if (! in_array($reparation->status, ['DONE', 'TAKEN'], true)) {
+            return back()->with('error', 'Servis belum selesai, belum bisa dilunasi.');
+        }
+
+        $recorded = ReparationPayment::settle($reparation, true, $request->user());
+
+        return back()->with('success', $recorded
+            ? 'Pembayaran servis dicatat ke kas.'
+            : 'Pembayaran ditandai lunas (tidak ada biaya yang dicatat ke kas).');
     }
 
     public function destroy(Reparation $reparation): RedirectResponse

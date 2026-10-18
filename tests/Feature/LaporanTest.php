@@ -24,29 +24,32 @@ test('sales report only includes sales on the selected day', function () {
 
     $response->assertOk();
     $props = $response->original->getData()['page']['props'];
-    expect($props['rows'])->toHaveCount(1)
-        ->and($props['rows'][0]['invoice'])->toBe('INV-2')
+
+    expect($props['summary']['count'])->toBe(1)
         ->and($props['summary']['total'])->toBe(200.0);
 });
 
-test('servis report counts status groups for the selected day', function () {
+test('servis report lists taken reparations with their confirmed total', function () {
     $customer = Customer::create(['name' => 'Andi', 'phone' => '08123', 'is_member' => false]);
-    $base = ['customer_id' => $customer->id, 'user_id' => $this->user->id, 'item_name' => 'Asus', 'flag' => ['HW'], 'accessories' => [], 'complaint' => ['Mati'], 'condition' => [], 'estimated_cost' => 0, 'technician_notes' => '', 'additional_notes' => ''];
+    $base = ['customer_id' => $customer->id, 'user_id' => $this->user->id, 'item_name' => 'Asus', 'flag' => ['HW'], 'accessories' => [], 'complaint' => ['Mati'], 'condition' => [], 'technician_notes' => '', 'additional_notes' => ''];
 
-    $reparations = [
-        ['status' => 'DONE', 'created_at' => '2026-10-10 09:00:00'],
-        ['status' => 'RECEIVED', 'created_at' => '2026-10-10 11:00:00'],
-        ['status' => 'DONE', 'created_at' => '2026-10-09 11:00:00'],
-    ];
-    foreach ($reparations as $data) {
-        $reparation = Reparation::create([...$base, 'status' => $data['status']]);
-        $reparation->forceFill(['created_at' => $data['created_at']])->saveQuietly();
-    }
+    $taken = Reparation::create([...$base, 'status' => 'TAKEN', 'payment_status' => 'unpaid', 'total_price' => 250000]);
+    $taken->forceFill(['created_at' => '2026-10-10 09:00:00'])->saveQuietly();
+    $stage = $taken->stages()->create(['sequence' => 1, 'status' => 'CONFIRMED']);
+    $stage->items()->create(['label' => 'Ganti LCD', 'cost' => 250000]);
+
+    $done = Reparation::create([...$base, 'status' => 'DONE', 'payment_status' => 'paid', 'total_price' => 100000]);
+    $done->forceFill(['created_at' => '2026-10-10 11:00:00'])->saveQuietly();
 
     $response = $this->actingAs($this->user)->get('/laporan/servis?from=2026-10-10&to=2026-10-10');
 
     $props = $response->original->getData()['page']['props'];
-    expect($props['summary'])->toMatchArray(['count' => 2, 'done' => 1, 'pending' => 1]);
+
+    expect($props['rows'])->toHaveCount(1)
+        ->and($props['rows'][0]['invoice'])->toBe($taken->invoice)
+        ->and($props['rows'][0]['label'])->toBe('Ganti LCD')
+        ->and($props['rows'][0]['cost'])->toEqual(250000)
+        ->and($props['summary'])->toMatchArray(['count' => 1, 'total' => 250000.0, 'unpaid' => 1]);
 });
 
 test('dashboard lists laptops that need a price and laptops ready to post', function () {

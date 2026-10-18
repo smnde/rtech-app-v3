@@ -20,7 +20,7 @@ class AddStageRequest extends FormRequest
         return [
             'items' => ['required', 'array', 'min:1'],
             'items.*.label' => ['required', 'string', 'max:255'],
-            'items.*.cost' => ['required', 'string', 'max:100'],
+            'items.*.cost' => ['required', 'numeric', 'min:0', 'max:999999999999'],
             'items.*.est_days' => ['nullable', 'date'],
             'note' => ['nullable', 'string', 'max:500'],
         ];

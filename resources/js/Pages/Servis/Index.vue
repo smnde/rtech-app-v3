@@ -60,13 +60,33 @@ const flagOptions = [
     { id: 'MB', label: 'MB' },
 ];
 
-const deadlineFor = (item) => (['RECEIVED', 'CHECKED'].includes(item.status)
-    ? { label: 'Deadline cek', value: item.check_deadline_at }
-    : { label: 'Deadline proses', value: item.process_deadline_at });
+const deadlineFor = (item) => {
+    const isCheck = ['RECEIVED', 'CHECKED'].includes(item.status);
+    const value = isCheck
+        ? (item.check_deadline_at ?? item.process_deadline_at)
+        : (item.process_deadline_at ?? item.check_deadline_at);
+    return { label: isCheck ? 'Deadline cek' : 'Deadline proses', value };
+};
 
-const formatDeadline = (value) => (value
-    ? new Date(value.replace(' ', 'T')).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
-    : '—');
+const formatDeadline = (value) => {
+    if (!value) return '—';
+
+    const target = new Date(value.replace(' ', 'T'));
+    target.setHours(0, 0, 0, 0);
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const dayDiff = Math.round((target - today) / 86400000);
+    const dateLabel = target.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+
+    if (dayDiff === -1) return `Kemarin (${dateLabel})`;
+    if (dayDiff === 0) return `Hari ini (${dateLabel})`;
+    if (dayDiff === 1) return `Besok (${dateLabel})`;
+    if (dayDiff === 2) return `Lusa (${dateLabel})`;
+
+    return dateLabel;
+};
 
 const deadlineColor = (value) => {
     if (!value) return 'gray';
@@ -85,19 +105,17 @@ const statusOptions = computed(() => props.statuses.map((status) => ({ id: statu
 const statusFilterOptions = computed(() => [{ id: '', label: 'Semua status' }, ...statusOptions.value]);
 const flagFilterOptions = computed(() => [{ id: '', label: 'Semua kerusakan' }, ...flagOptions]);
 
-const todayDate = new Date().toISOString().slice(0, 10);
-
 const hasActiveFilter = computed(() =>
     filterForm.status !== ''
     || filterForm.flag !== ''
-    || filterForm.period.from !== todayDate
-    || filterForm.period.to !== todayDate
+    || (filterForm.period.from ?? '') !== (props.filters.from ?? '')
+    || (filterForm.period.to ?? '') !== (props.filters.to ?? '')
 );
 
 const resetFilter = () => {
     filterForm.status = '';
     filterForm.flag = '';
-    filterForm.period = { from: todayDate, to: todayDate };
+    filterForm.period = { from: '', to: '' };
     applyFilter();
 };
 
@@ -105,7 +123,7 @@ const filterForm = reactive({
     search: props.filters.search ?? '',
     status: props.filters.status ?? '',
     flag: props.filters.flag ?? '',
-    period: { from: props.filters.from ?? todayDate, to: props.filters.to ?? todayDate },
+    period: { from: props.filters.from ?? '', to: props.filters.to ?? '' },
 });
 
 const applyFilter = () => {
@@ -369,7 +387,7 @@ const cardClass = 'rounded-xl border border-gray-200 dark:border-gray-800 bg-whi
                         <AppBadge v-for="flag in item.flag" :key="flag" color="blue" size="sm">{{ flag }}</AppBadge>
                     </div>
                     <p class="mt-1 text-xs text-gray-500">
-                        {{ (item.stages ?? []).flatMap((s) => s.items ?? []).map((i) => `${i.label}: ${i.cost}`).join(' · ') || 'Estimasi: —' }}
+                        {{ (item.stages ?? []).flatMap((s) => s.items ?? []).map((i) => `${i.label}: ${Number(i.cost) > 0 ? `Rp ${Number(i.cost).toLocaleString('id-ID')}` : '-'}`).join(' · ') || 'Estimasi: —' }}
                     </p>
                     <div class="mt-2 flex flex-wrap items-center gap-2">
                         <AppBadge :color="deadlineColor(deadlineFor(item).value)" size="sm">

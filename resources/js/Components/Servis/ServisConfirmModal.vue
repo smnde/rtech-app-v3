@@ -4,6 +4,7 @@ import { Plus, Send, X } from 'lucide-vue-next';
 import AppModal from '@/Components/UI/AppModal.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
 import AppDatePicker from '@/Components/UI/AppDatePicker.vue';
+import AppCurrencyInput from '@/Components/UI/AppCurrencyInput.vue';
 
 const props = defineProps({
     show: { type: Boolean, default: false },
@@ -13,7 +14,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'submit']);
 
-const form = ref({ stage_id: null, items: [{ label: '', cost: '', est_days: '' }], process_deadline_at: '' });
+const form = ref({ stage_id: null, items: [{ label: '', cost: '', est_days: '' }], process_deadline_at: '', note: '' });
 const editedMessage = ref(null);
 
 const addItem = () => form.value.items.push({ label: '', cost: '', est_days: '' });
@@ -26,10 +27,12 @@ const formatDeadlineDate = (value) => (value
     ? new Date(value.replace(' ', 'T')).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })
     : '-');
 
+const formatDateTimeInput = (value) => (value ? value.slice(0, 16).replace(' ', 'T') : '');
+
 const defaultMessage = computed(() => {
     const items = form.value.items
         .filter((i) => i.label.trim())
-        .map((i) => `  • ${i.label}: ${i.cost || '-'}${i.est_days ? ` (est. selesai ${i.est_days})` : ''}`);
+        .map((i) => `  • ${i.label}: ${Number(i.cost) > 0 ? `Rp ${Number(i.cost).toLocaleString('id-ID')}` : '-'}${i.est_days ? ` (est. selesai ${i.est_days})` : ''}`);
     return [
         'Halo, dari R-TECH COMPUTER.',
         '',
@@ -52,13 +55,14 @@ watch(
     (val) => {
         if (!val) return;
         const stages = props.reparation.stages ?? [];
-        const firstStage = stages[0] ?? null;
+        const firstStage = [...stages].reverse().find((stage) => stage.status === 'PENDING') ?? stages[0] ?? null;
         form.value = {
             stage_id: firstStage?.id ?? null,
             items: firstStage?.items?.length
                 ? firstStage.items.map((i) => ({ label: i.label, cost: i.cost, est_days: i.est_days ?? '' }))
                 : [{ label: '', cost: '', est_days: '' }],
-            process_deadline_at: props.reparation.process_deadline_at ?? '',
+            process_deadline_at: formatDateTimeInput(props.reparation.process_deadline_at),
+            note: '',
         };
         editedMessage.value = null;
     },
@@ -79,12 +83,16 @@ const sendWhatsapp = () => {
 const handleDone = () => {
     emit('submit', {
         stage_id: form.value.stage_id,
-        items: form.value.items.map((i) => ({
-            label: i.label.trim(),
-            cost: i.cost.trim(),
-            est_days: i.est_days.trim() || null,
-        })),
+        items: form.value.items
+            .filter((i) => i.label.trim() || i.cost !== '')
+            .map((i) => ({
+                label: i.label.trim(),
+                cost: i.cost === '' ? 0 : Number(i.cost),
+                est_days: i.est_days.trim() || null,
+            })),
         process_deadline_at: form.value.process_deadline_at,
+        note: form.value.note.trim() || null,
+        message: message.value,
     });
 };
 
@@ -115,8 +123,9 @@ const textareaClass = 'w-full rounded-lg border border-gray-300 dark:border-gray
                     <div v-for="(item, i) in form.items" :key="i" class="flex items-center gap-2">
                         <input v-model="item.label" type="text" placeholder="Kendala / pekerjaan"
                             class="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500" />
-                        <input v-model="item.cost" type="text" placeholder="Biaya, mis. 200-300rb"
-                            class="w-32 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                        <div class="w-36 shrink-0">
+                            <AppCurrencyInput v-model="item.cost" placeholder="Biaya" />
+                        </div>
                         <div class="w-36 shrink-0">
                             <AppDatePicker v-model="item.est_days" placeholder="Est. selesai" />
                         </div>
@@ -132,6 +141,11 @@ const textareaClass = 'w-full rounded-lg border border-gray-300 dark:border-gray
             <div>
                 <label :class="labelClass">Deadline proses</label>
                 <AppDatePicker v-model="form.process_deadline_at" placeholder="Pilih tanggal" />
+            </div>
+
+            <div>
+                <label :class="labelClass">Catatan (opsional)</label>
+                <textarea v-model="form.note" rows="3" maxlength="500" :class="textareaClass" placeholder="Catatan untuk log servis..."></textarea>
             </div>
         </div>
 

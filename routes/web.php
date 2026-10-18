@@ -129,6 +129,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/servis/{reparation}/konfirmasi', [ReparationsController::class, 'confirm'])->middleware('permission:edit reparation')->name('servis.confirm');
     Route::post('/servis/{reparation}/tahapan', [ReparationsController::class, 'addStage'])->middleware('permission:edit reparation')->name('servis.add-stage');
     Route::patch('/servis/{reparation}/status', [ReparationsController::class, 'changeStatus'])->middleware('permission:edit reparation')->name('servis.status');
+    Route::patch('/servis/{reparation}/lunas', [ReparationsController::class, 'markPaid'])->middleware('permission:edit reparation')->name('servis.lunas');
     Route::delete('/servis/{reparation}', [ReparationsController::class, 'destroy'])->middleware('permission:delete reparation')->name('servis.destroy');
 
     // === Transaksi ===

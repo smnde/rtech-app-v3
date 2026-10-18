@@ -32,6 +32,14 @@ const escape = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({
 }[c]));
 
 // Koleksi item dari semua stage CONFIRMED — yang masuk nota.
+const formatRupiah = (value) => `Rp ${Number(value ?? 0).toLocaleString('id-ID')}`;
+
+const total = computed(() =>
+    (props.reparation?.total_price ?? confirmedItems.value.reduce((sum, item) => sum + Number(item.cost ?? 0), 0)) || 0
+);
+
+const paymentLabel = computed(() => (props.reparation?.payment_status === 'paid' ? 'Lunas' : 'Belum lunas'));
+
 const confirmedItems = computed(() => {
     const r = props.reparation;
     if (!r) return [];
@@ -67,10 +75,15 @@ const receiptBody = computed(() => {
                 <tr>
                     <td class="idx">${i + 1}</td>
                     <td class="item-name">${escape(item.label)}</td>
-                    <td class="num">${escape(item.cost)}</td>
+                    <td class="num">${Number(item.cost) > 0 ? formatRupiah(item.cost) : '-'}</td>
                 </tr>`).join('')}
             </tbody>
         </table>
+
+        <div class="totals">
+            <div class="row"><span>Pembayaran</span><span>${paymentLabel.value}</span></div>
+            <div class="row grand"><span>Total</span><span>${formatRupiah(total.value)}</span></div>
+        </div>
 
         ${storeFoot(s)}`;
 });
@@ -161,17 +174,24 @@ const sendWa = async () => {
                     <tr v-for="(item, i) in confirmedItems" :key="i" class="border-b border-slate-100 align-top">
                         <td class="px-1 py-1.5 text-slate-400">{{ i + 1 }}</td>
                         <td class="px-1 py-1.5 font-semibold text-slate-900">{{ item.label }}</td>
-                        <td class="px-1 py-1.5 text-right tabular-nums">{{ item.cost }}</td>
+                        <td class="px-1 py-1.5 text-right tabular-nums">{{ Number(item.cost) > 0 ? formatRupiah(item.cost) : '-' }}</td>
                     </tr>
                 </tbody>
             </table>
+
+            <div class="mt-2 border-t border-slate-300 pt-2 text-[9.5px]">
+                <div class="flex justify-between py-0.5 font-semibold text-slate-900"><span>Total</span><span class="tabular-nums">{{ formatRupiah(total) }}</span></div>
+                <div class="flex justify-between py-0.5 text-slate-500"><span>Pembayaran</span><span>{{ paymentLabel }}</span></div>
+            </div>
 
             <p class="mt-6 border-t border-dashed border-slate-300 pt-3 text-center text-[9px] text-slate-500">
                 {{ store.footer || 'Terima kasih' }}
             </p>
             <p class="mt-2 text-center text-[7.5px] text-slate-400 leading-relaxed">
-                Garansi berlaku selama tidak ada indikasi Human Error / Kesalahan Pengguna.<br>
-                Tidak ada pengembalian barang / uang untuk barang yang sudah dibeli.
+                Garansi dengan kerusakan yg sama 1 bln.<br>
+                Garansi berlaku selama tidak terjadi human error / kesalahan pengguna.<br>
+                Tidak ada pengembalian uang untuk Servisan yang sudah selesai.<br>
+                Servisan yang statusnya selesai atau cancel, jika tidak diambil lebih dr 60hr, di luar tanggung jawab kami.
             </p>
         </div>
 

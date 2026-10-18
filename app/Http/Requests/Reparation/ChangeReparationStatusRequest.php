@@ -21,6 +21,7 @@ class ChangeReparationStatusRequest extends FormRequest
         return [
             'status' => ['required', Rule::in(['RECEIVED', 'CHECKED', 'CONFIRMED', 'WAITING CONFIRMATION', 'ON PROCESS', 'PENDING', 'CANCEL', 'DONE', 'TAKEN'])],
             'note' => ['nullable', 'string', 'max:500'],
+            'payment_status' => ['nullable', Rule::in(['paid', 'unpaid'])],
         ];
     }
 }

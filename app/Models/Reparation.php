@@ -18,6 +18,9 @@ use Illuminate\Database\Eloquent\Model;
     'check_deadline_at',
     'process_deadline_at',
     'status',
+    'payment_status',
+    'paid_at',
+    'total_price',
     'technician_notes',
     'additional_notes',
 ])]
@@ -51,6 +54,8 @@ class Reparation extends Model
             'condition' => 'array',
             'check_deadline_at' => 'datetime',
             'process_deadline_at' => 'datetime',
+            'total_price' => 'decimal:2',
+            'paid_at' => 'datetime',
         ];
     }
 
@@ -72,5 +77,22 @@ class Reparation extends Model
     public function stages()
     {
         return $this->hasMany(ReparationStage::class)->orderBy('sequence');
+    }
+
+    /**
+     * Total biaya dari item di semua tahap yang sudah dikonfirmasi.
+     */
+    public function confirmedTotal(): float
+    {
+        return (float) ReparationStageItem::query()
+            ->whereHas('stage', fn ($query) => $query
+                ->where('reparation_id', $this->id)
+                ->where('status', 'CONFIRMED'))
+            ->sum('cost');
+    }
+
+    public function isPaid(): bool
+    {
+        return $this->payment_status === 'paid';
     }
 }

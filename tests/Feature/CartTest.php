@@ -214,7 +214,7 @@ test('a successful sale clears the active sale cart', function () {
             'discount' => 0,
             'is_bonus' => false,
         ]],
-    ])->assertRedirect(route('transaksi.penjualan'));
+    ])->assertSessionHas('success');
 
     $cart->refresh();
     expect($cart->items()->count())->toBe(0)

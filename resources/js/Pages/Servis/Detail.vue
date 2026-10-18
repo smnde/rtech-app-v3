@@ -8,6 +8,8 @@ import AppBadge from '@/Components/UI/AppBadge.vue';
 import AppModal from '@/Components/UI/AppModal.vue';
 import ServisConfirmModal from '@/Components/Servis/ServisConfirmModal.vue';
 import ServisStatusModal from '@/Components/Servis/ServisStatusModal.vue';
+import ServisSettleModal from '@/Components/Servis/ServisSettleModal.vue';
+import AppCurrencyInput from '@/Components/UI/AppCurrencyInput.vue';
 import ServisReceiptModal from '@/Components/Servis/ServisReceiptModal.vue';
 import { usePermission } from '@/composables/usePermission';
 import { useToast } from '@/composables/useToast';
@@ -69,6 +71,8 @@ const addStageForm = ref({
     items: [{ label: '', cost: '', est_days: '' }],
 });
 
+const formatRupiah = (value) => `Rp ${Number(value ?? 0).toLocaleString('id-ID')}`;
+
 const nextStageNo = computed(() => stages.value.length + 1);
 
 const openAddStage = () => {
@@ -84,7 +88,7 @@ const submitAddStage = () => {
         note: addStageForm.value.note.trim() || null,
         items: addStageForm.value.items.map((i) => ({
             label: i.label.trim(),
-            cost: i.cost.trim(),
+            cost: i.cost === '' ? 0 : Number(i.cost),
             est_days: i.est_days.trim() || null,
         })),
     }, {
@@ -113,6 +117,15 @@ const submitConfirm = (payload) => {
 };
 
 const submitStatus = (payload) => {
+    // DONE / TAKEN wajib lewat modal rincian + status bayar.
+    // Kalau sudah lunas, tidak perlu tanya lagi (kas sudah tercatat sekali).
+    if ((payload.status === 'DONE' || payload.status === 'TAKEN') && props.reparation.payment_status !== 'paid') {
+        settleForm.value = { status: payload.status, note: payload.note ?? null, paid: false };
+        showStatus.value = false;
+        showSettle.value = true;
+        return;
+    }
+
     saving.value = true;
     router.patch(route('servis.status', props.reparation.id), payload, {
         preserveScroll: true,
@@ -121,6 +134,39 @@ const submitStatus = (payload) => {
         onFinish: () => { saving.value = false; },
     });
 };
+
+const showSettle = ref(false);
+const settleForm = ref({ status: 'DONE', note: null, paid: false });
+
+const submitSettle = (paid) => {
+    saving.value = true;
+    router.patch(route('servis.status', props.reparation.id), {
+        status: settleForm.value.status,
+        note: settleForm.value.note,
+        payment_status: paid ? 'paid' : 'unpaid',
+    }, {
+        preserveScroll: true,
+        onSuccess: () => { showSettle.value = false; },
+        onError: (errors) => toast.error(Object.values(errors)[0] ?? 'Data tidak valid.'),
+        onFinish: () => { saving.value = false; },
+    });
+};
+
+const markPaid = () => {
+    saving.value = true;
+    router.patch(route('servis.lunas', props.reparation.id), {}, {
+        preserveScroll: true,
+        onFinish: () => { saving.value = false; },
+    });
+};
+
+const confirmedItems = computed(() =>
+    (props.reparation.stages ?? [])
+        .filter((stage) => stage.status === 'CONFIRMED')
+        .flatMap((stage) => stage.items ?? [])
+);
+
+const grandTotal = computed(() => confirmedItems.value.reduce((sum, item) => sum + Number(item.cost ?? 0), 0));
 
 const cardClass = 'rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900';
 
@@ -132,7 +178,7 @@ const receiptMessage = computed(() => {
         .flatMap((st) => st.items ?? []);
     const items = confirmedItems
         .filter((i) => i.label)
-        .map((i) => `  • ${i.label}: ${i.cost || '-'}${i.est_days ? ` (est. selesai ${i.est_days})` : ''}`);
+        .map((i) => `  • ${i.label}: ${Number(i.cost) > 0 ? formatRupiah(i.cost) : '-'}${i.est_days ? ` (est. selesai ${i.est_days})` : ''}`);
     return [
         `*${s.name ?? 'Rtech Computer'}*`,
         '',
@@ -174,6 +220,10 @@ const receiptMessage = computed(() => {
                     <AppButton v-if="can('edit reparation') && canConfirm" variant="secondary" size="sm" @click="showConfirm = true">
                         <CheckCircle2 class="h-4 w-4" />
                         Konfirmasi
+                    </AppButton>
+                    <AppButton v-if="can('edit reparation') && reparation.payment_status !== 'paid' && ['DONE', 'TAKEN'].includes(reparation.status)"
+                        variant="primary" size="sm" :loading="saving" @click="markPaid">
+                        Tandai Lunas
                     </AppButton>
                     <AppButton v-if="can('edit reparation')" variant="primary" size="sm" @click="showStatus = true">
                         <RefreshCw class="h-4 w-4" />
@@ -242,12 +292,22 @@ const receiptMessage = computed(() => {
                             <div v-for="(item, i) in stage.items" :key="i"
                                 class="flex items-center justify-between text-sm text-gray-700 dark:text-gray-300">
                                 <span>{{ item.label }}</span>
-                                <span class="text-gray-500">
-                                    {{ item.cost }}
+                                <span class="text-gray-500 tabular-nums">
+                                    {{ formatRupiah(item.cost) }}
                                     <template v-if="item.est_days"> · est. {{ item.est_days }}</template>
                                 </span>
                             </div>
                         </div>
+                    </div>
+
+                    <div class="flex items-center justify-between rounded-lg border border-gray-200 dark:border-gray-800 px-4 py-3">
+                        <div class="text-sm">
+                            <p class="font-medium text-gray-900 dark:text-white">Total biaya</p>
+                            <p class="text-xs text-gray-500">
+                                {{ reparation.payment_status === 'paid' ? `Lunas${reparation.paid_at ? ' · ' + formatDateTime(reparation.paid_at) : ''}` : 'Belum lunas' }}
+                            </p>
+                        </div>
+                        <p class="text-lg font-semibold tabular-nums text-gray-900 dark:text-white">{{ formatRupiah(reparation.total_price ?? grandTotal) }}</p>
                     </div>
                 </div>
 
@@ -300,6 +360,16 @@ const receiptMessage = computed(() => {
         @submit="submitConfirm"
     />
 
+    <ServisSettleModal
+        :show="showSettle"
+        :status="settleForm.status"
+        :items="confirmedItems"
+        :total="grandTotal"
+        :saving="saving"
+        @close="showSettle = false"
+        @confirm="submitSettle"
+    />
+
     <ServisStatusModal
         :show="showStatus"
         :reparation="reparation"
@@ -348,12 +418,9 @@ const receiptMessage = computed(() => {
                             placeholder="Item / kerusakan"
                             class="flex-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
-                        <input
-                            v-model="item.cost"
-                            type="text"
-                            placeholder="Biaya"
-                            class="w-24 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        />
+                        <div class="w-36 shrink-0">
+                            <AppCurrencyInput v-model="item.cost" placeholder="Biaya" />
+                        </div>
                         <div class="w-36 shrink-0">
                             <AppDatePicker v-model="item.est_days" placeholder="Est. selesai" />
                         </div>

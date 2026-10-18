@@ -17,4 +17,14 @@ class ReparationStage extends Model
     {
         return $this->hasMany(ReparationStageItem::class);
     }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'confirmed_at' => 'datetime',
+        ];
+    }
 }

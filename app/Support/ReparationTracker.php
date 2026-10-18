@@ -23,17 +23,33 @@ class ReparationTracker
         ]);
     }
 
-    public function changeStatus(Reparation $reparation, User $user, string $to, ?string $note = null): void
+    public function changeStatus(Reparation $reparation, User $user, string $to, ?string $note = null, ?bool $paid = null): void
     {
         $from = $reparation->status;
         if ($from === $to) {
             return;
         }
 
-        DB::transaction(function () use ($reparation, $user, $from, $to, $note) {
+        DB::transaction(function () use ($reparation, $user, $from, $to, $note, $paid) {
             $reparation->update(['status' => $to]);
             $this->record($reparation, $user, ReparationLog::EVENT_STATUS_CHANGED, $from, $to, $note);
+            $this->syncPayment($reparation, $user, $to, $paid);
         });
+    }
+
+    /**
+     * DONE/TAKEN adalah titik penagihan: total disimpan, dan kas dicatat hanya
+     * saat pembayaran ditandai lunas (cukup sekali per invoice).
+     */
+    private function syncPayment(Reparation $reparation, User $user, string $to, ?bool $paid): void
+    {
+        if (! in_array($to, ['DONE', 'TAKEN'], true)) {
+            ReparationPayment::syncTotal($reparation);
+
+            return;
+        }
+
+        ReparationPayment::settle($reparation, $paid ?? $reparation->isPaid(), $user);
     }
 
     private function describe(string $event, ?string $from, ?string $to, ?string $note): string

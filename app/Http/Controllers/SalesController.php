@@ -31,8 +31,8 @@ class SalesController extends Controller
 
         $sales = Sale::query()
             ->with('customer:id,name')
-            ->when($request->search, fn($query, $search) => $query->where('invoice', 'like', "%{$search}%"))
-            ->when($request->filled('status'), fn($query) => $query->where('payment_status', $request->string('status')))
+            ->when($request->search, fn ($query, $search) => $query->where('invoice', 'like', "%{$search}%"))
+            ->when($request->filled('status'), fn ($query) => $query->where('payment_status', $request->string('status')))
             ->whereDate('created_at', '>=', $from)
             ->whereDate('created_at', '<=', $to)
             ->latest()
@@ -94,7 +94,7 @@ class SalesController extends Controller
                 'dp_amount' => $sale->dp_amount !== null ? (float) $sale->dp_amount : null,
                 'paid_at' => $sale->paid_at?->toDateTimeString(),
                 'notes' => $sale->notes,
-                'items' => $sale->details->map(fn($detail) => [
+                'items' => $sale->details->map(fn ($detail) => [
                     'item_name' => $detail->item?->name,
                     'item_code' => $detail->item?->sku,
                     'qty' => $detail->qty,
@@ -116,8 +116,8 @@ class SalesController extends Controller
     private function shortSpec(?array $specification): ?string
     {
         $parts = collect(['cpu', 'memory', 'storage'])
-            ->map(fn(string $key) => $specification[$key] ?? null)
-            ->filter(fn($value) => filled($value))
+            ->map(fn (string $key) => $specification[$key] ?? null)
+            ->filter(fn ($value) => filled($value))
             ->all();
 
         return $parts ? implode(' · ', $parts) : null;
@@ -135,7 +135,7 @@ class SalesController extends Controller
             $model::query()
                 ->where('stock', '>', 0)
                 ->where('sell_price', '>', 0)
-                ->when($type === 'laptop', fn($query) => $query->whereIn('status', ['SIAP JUAL', 'DISPLAY']))
+                ->when($type === 'laptop', fn ($query) => $query->whereIn('status', ['SIAP JUAL', 'DISPLAY']))
                 ->orderBy('name')
                 ->get(array_filter(['id', 'name', 'sku', 'sell_price', $hasSpecification ? 'specification' : null]))
                 ->each(function ($item) use ($type, $hasSpecification, &$products) {
@@ -156,8 +156,9 @@ class SalesController extends Controller
     public function store(StoreSaleRequest $request): RedirectResponse
     {
         $data = $request->validated();
+        $sale = null;
 
-        DB::transaction(function () use ($data, $request) {
+        DB::transaction(function () use ($data, $request, &$sale) {
             $subtotal = 0;
             $lineDiscountTotal = 0;
             $lines = [];
@@ -244,6 +245,10 @@ class SalesController extends Controller
             $activeCart->update(['customer_id' => null, 'total' => 0, 'item_count' => 0]);
         });
 
+        if (! $sale instanceof Sale) {
+            return back()->with('error', 'Penjualan gagal disimpan.');
+        }
+
         $receiptSale = $sale->load(['user:id,name', 'customer:id,name,phone,is_member']);
 
         return redirect()
@@ -265,7 +270,7 @@ class SalesController extends Controller
             // keep = pelunasan custom → jalankan mutasi keluar saat dilunasi.
             if ($wasKeep) {
                 $this->recordOut(
-                    $sale->details->map(fn($detail) => [
+                    $sale->details->map(fn ($detail) => [
                         'stock_item' => $detail->item,
                         'qty' => (int) $detail->qty,
                     ])->all(),
