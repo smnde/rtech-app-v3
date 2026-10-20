@@ -484,9 +484,9 @@ const getDrawerActions = (item) => {
                             <template v-if="item.flag?.length">{{ (item.flag ?? []).join(' · ') }}</template>
                             <template v-else>—</template>
                         </p>
-                        <span :class="['shrink-0 text-xs font-medium tabular-nums', deadlineColor(deadlineFor(item).value) === 'red' ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400']">
+                        <AppBadge v-if="deadlineFor(item).value" :color="deadlineColor(deadlineFor(item).value)" size="sm">
                             {{ formatDeadline(deadlineFor(item).value) }}
-                        </span>
+                        </AppBadge>
                     </div>
                 </div>
             </div>
