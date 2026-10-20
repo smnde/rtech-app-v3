@@ -37,6 +37,23 @@ test('stock movement is recorded with the chosen movement date', function () {
         ->and($this->laptop->fresh()->stock)->toBe(5);
 });
 
+test('adjustment movement is stored with PENYESUAIAN status', function () {
+    $this->actingAs($this->user)->post(route('stock-movements.store'), [
+        'item_type' => 'laptop',
+        'item_id' => $this->laptop->id,
+        'type' => 'adjustment',
+        'status' => 'PENYESUAIAN',
+        'movement_date' => '2026-10-01',
+        'quantity' => 7,
+    ])->assertSessionHas('success');
+
+    $movement = StockMovement::query()->firstOrFail();
+
+    expect($movement->status)->toBe('PENYESUAIAN')
+        ->and($movement->stock_after)->toBe(7)
+        ->and($this->laptop->fresh()->stock)->toBe(7);
+});
+
 test('stock movement requires a movement date', function () {
     $this->actingAs($this->user)->post(route('stock-movements.store'), [
         'item_type' => 'laptop',

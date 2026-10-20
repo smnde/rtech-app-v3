@@ -116,11 +116,12 @@ const MOVEMENT_LABEL = {
 
 // Status mutasi: pembelian/refund masuk, terjual/bonus/hutang keluar.
 const MOVEMENT_STATUS = {
-    PEMBELIAN: { text: 'Pembelian',     cls: 'text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
-    REFUND:    { text: 'Refund',        cls: 'text-teal-700 dark:text-teal-400 bg-teal-500/10 border-teal-500/20' },
-    TERJUAL:   { text: 'Terjual',       cls: 'text-indigo-700 dark:text-indigo-400 bg-indigo-500/10 border-indigo-500/20' },
-    BONUS:     { text: 'Bonus',         cls: 'text-fuchsia-700 dark:text-fuchsia-400 bg-fuchsia-500/10 border-fuchsia-500/20' },
-    HUTANG:    { text: 'Hutang',        cls: 'text-amber-700 dark:text-amber-400 bg-amber-500/10 border-amber-500/20' },
+    PEMBELIAN:   { text: 'Pembelian',   cls: 'text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
+    REFUND:      { text: 'Refund',      cls: 'text-teal-700 dark:text-teal-400 bg-teal-500/10 border-teal-500/20' },
+    TERJUAL:     { text: 'Terjual',     cls: 'text-indigo-700 dark:text-indigo-400 bg-indigo-500/10 border-indigo-500/20' },
+    BONUS:       { text: 'Bonus',       cls: 'text-fuchsia-700 dark:text-fuchsia-400 bg-fuchsia-500/10 border-fuchsia-500/20' },
+    HUTANG:      { text: 'Hutang',      cls: 'text-amber-700 dark:text-amber-400 bg-amber-500/10 border-amber-500/20' },
+    PENYESUAIAN: { text: 'Penyesuaian', cls: 'text-yellow-700 dark:text-yellow-400 bg-yellow-500/10 border-yellow-500/20' },
 };
 
 const rupiah = (value) => (value === null || value === undefined || value === ''
@@ -131,8 +132,12 @@ const formatDateTime = (value) => (value
     ? new Date(String(value).replace(' ', 'T')).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
     : '—');
 
+const formatDate = (value) => (value
+    ? new Date(String(value).replace(' ', 'T')).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+    : '—');
+
 const stockHistory = computed(() =>
-    [...props.history].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
+    [...props.history].sort((a, b) => (b.movement_date ?? '').localeCompare(a.movement_date ?? '') || (b.id - a.id)),
 );
 
 const isLaptop = computed(() => props.module === 'laptop');
@@ -371,7 +376,7 @@ const formatMovementQuantity = (movement) => {
                                     {{ (MOVEMENT_STATUS[movement.status] ?? { text: movement.status }).text }}
                                 </span>
                                 <span class="ml-auto text-[11px] tabular-nums text-gray-400 dark:text-gray-500">
-                                    {{ formatDateTime(movement.created_at) }}
+                                    {{ formatDate(movement.movement_date) }}
                                 </span>
                             </div>
                             <div class="min-w-0">

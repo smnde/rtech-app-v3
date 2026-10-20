@@ -29,7 +29,7 @@ const columns = [
 
 const TYPE_COLOR = { in: 'green', out: 'red', adjustment: 'yellow' };
 const TYPE_LABEL = { in: 'Masuk', out: 'Keluar', adjustment: 'Penyesuaian' };
-const STATUS_LABEL = { NONE: 'Biasa', BONUS: 'Bonus', DEBT: 'Hutang', 'SOLD OUT': 'Sold Out', REFUND: 'Refund' };
+const STATUS_LABEL = { PEMBELIAN: 'Pembelian', REFUND: 'Refund', TERJUAL: 'Terjual', BONUS: 'Bonus', HUTANG: 'Hutang', PENYESUAIAN: 'Penyesuaian' };
 </script>
 
 <template>
@@ -47,8 +47,8 @@ const STATUS_LABEL = { NONE: 'Biasa', BONUS: 'Bonus', DEBT: 'Hutang', 'SOLD OUT'
         <template #cell-type="{ value }">
             <AppBadge :color="TYPE_COLOR[value] ?? 'gray'" size="sm" dot>{{ TYPE_LABEL[value] ?? value }}</AppBadge>
         </template>
-        <template #cell-status="{ value, row }">
-            <span class="text-sm text-gray-600 dark:text-gray-300">{{ row.type === 'adjustment' ? '-' : (STATUS_LABEL[value] ?? value) }}</span>
+        <template #cell-status="{ value }">
+            <span class="text-sm text-gray-600 dark:text-gray-300">{{ STATUS_LABEL[value] ?? value }}</span>
         </template>
         <template #cell-stock="{ row }">
             <span class="tabular-nums">{{ row.stock_before }} → {{ row.stock_after }}</span>

@@ -57,6 +57,7 @@ const STATUS_LABEL = {
     TERJUAL: 'Terjual',
     BONUS: 'Bonus',
     HUTANG: 'Hutang',
+    PENYESUAIAN: 'Penyesuaian',
 };
 
 const STATUS_OPTIONS_IN = [
@@ -70,7 +71,20 @@ const STATUS_OPTIONS_OUT = [
     { id: 'HUTANG', label: 'Hutang' },
 ];
 
-const statusOptionsForType = computed(() => (form.type === 'out' ? STATUS_OPTIONS_OUT : STATUS_OPTIONS_IN));
+const STATUS_OPTIONS_ADJUSTMENT = [
+    { id: 'PENYESUAIAN', label: 'Penyesuaian' },
+];
+
+const statusOptionsForType = computed(() => {
+    if (form.type === 'adjustment') return STATUS_OPTIONS_ADJUSTMENT;
+    return form.type === 'out' ? STATUS_OPTIONS_OUT : STATUS_OPTIONS_IN;
+});
+
+const selectType = (type) => {
+    form.type = type;
+    if (type === 'adjustment') { form.status = 'PENYESUAIAN'; }
+    else if (form.status === 'PENYESUAIAN') { form.status = type === 'out' ? 'TERJUAL' : 'PEMBELIAN'; }
+};
 
 const todayDate = new Date().toISOString().slice(0, 10);
 
@@ -135,7 +149,7 @@ const showModal = ref(false);
 const saving = ref(false);
 const errors = ref({});
 const today = () => new Date().toLocaleDateString('en-CA');
-const form = reactive({ item: '', type: 'in', status: 'NONE', movement_date: today(), quantity: '', reference: '', notes: '' });
+const form = reactive({ item: '', type: 'in', status: 'PEMBELIAN', movement_date: today(), quantity: '', reference: '', notes: '' });
 
 const openCreate = () => {
     Object.assign(form, { item: '', type: 'in', status: 'PEMBELIAN', movement_date: today(), quantity: '', reference: '', notes: '' });
@@ -166,7 +180,7 @@ const submit = () => {
         item_type: itemType,
         item_id: Number(itemId),
         type: form.type,
-        status: form.type === 'adjustment' ? 'NONE' : form.status,
+        status: form.status,
         movement_date: form.movement_date,
         quantity: Number(form.quantity),
         reference: form.reference || null,
@@ -357,7 +371,7 @@ const getDrawerActions = (movement) => {
                     <td class="px-5 py-3">
                         <AppBadge :color="TYPE_COLOR[item.type] ?? 'gray'" size="sm" dot>{{ TYPE_LABEL[item.type] ?? item.type }}</AppBadge>
                     </td>
-                    <td class="px-5 py-3 text-sm text-gray-500">{{ item.type === 'adjustment' ? '-' : (STATUS_LABEL[item.status] ?? item.status) }}</td>
+                    <td class="px-5 py-3 text-sm text-gray-500">{{ STATUS_LABEL[item.status] ?? item.status }}</td>
                     <td class="px-5 py-3 text-sm text-gray-700 dark:text-gray-300 tabular-nums">{{ item.quantity }}</td>
                     <td class="px-5 py-3 text-sm text-gray-500 tabular-nums">{{ item.stock_before }} → {{ item.stock_after }}</td>
                     <td class="px-5 py-3 text-sm text-gray-500">{{ item.reference ?? '-' }}</td>
@@ -404,7 +418,7 @@ const getDrawerActions = (movement) => {
                     </div>
                     <div class="flex items-center gap-1.5 shrink-0">
                         <AppBadge :color="TYPE_COLOR[item.type] ?? 'gray'" size="sm" dot>{{ TYPE_LABEL[item.type] ?? item.type }}</AppBadge>
-                        <span v-if="item.type !== 'adjustment'" class="text-xs text-gray-500">{{ STATUS_LABEL[item.status] ?? item.status }}</span>
+                        <span class="text-xs text-gray-500">{{ STATUS_LABEL[item.status] ?? item.status }}</span>
                     </div>
                 </div>
                 <div class="mt-1 flex items-center justify-between gap-2 text-xs">
@@ -473,7 +487,7 @@ const getDrawerActions = (movement) => {
                             v-for="opt in TYPE_FORM_OPTIONS"
                             :key="opt.id"
                             type="button"
-                            @click="form.type = opt.id"
+                            @click="selectType(opt.id)"
                             :class="[
                                 'inline-flex min-w-0 flex-1 items-center justify-center rounded-md px-2 py-2 text-sm font-medium transition-colors',
                                 form.type === opt.id
@@ -485,7 +499,7 @@ const getDrawerActions = (movement) => {
                         </button>
                     </div>
                 </div>
-                <div v-if="form.type === 'in' || form.type === 'out'">
+                <div>
                     <label :class="labelClass">Status <span class="text-red-500">*</span></label>
                     <div class="inline-flex w-full rounded-lg border border-gray-300 dark:border-gray-700 p-1 bg-gray-50 dark:bg-gray-800/60">
                         <button
