@@ -341,7 +341,7 @@ function drawFoot(pdf, store, y, { bullets = null, bullet = false, withNotes = t
 async function loadLogoDataUrl() {
     if (PDF.logo !== undefined) return PDF.logo;
     try {
-        const res = await fetch('/icons/icon-512.png');
+        const res = await fetch('/apple-touch-icon.png');
         if (!res.ok) throw new Error(`logo ${res.status}`);
         const blob = await res.blob();
         // FileReader tidak ada di semua runtime (mis. SSR/test); pakai keduanya.
@@ -409,7 +409,7 @@ export function receiptFilename(customerName, invoice) {
 
 // Kepala dokumen HTML (dipakai tombol Cetak).
 export function storeHead({ store = {}, title = '', invoice = '', badge = null }) {
-    const logoHtml = `<img src="/icons/icon-512.png" alt="logo"
+    const logoHtml = `<img src="/apple-touch-icon.png" alt="logo"
         style="width:40px;height:40px;object-fit:contain;border-radius:8px;margin-right:8px;flex-shrink:0;" />`;
 
     return `<div class="doc-head">
@@ -452,25 +452,25 @@ export function storeFoot(store = {}, { notes = SALE_FOOTER_NOTES, bullet = fals
     </div>`;
 }
 
-// Baris tabel barang: nama, kode, serial, spesifikasi, qty, harga, diskon, subtotal.
+// Baris tabel barang: nama, serial, fitur, aksesori, qty, harga, diskon, subtotal.
 function itemRows(items = [], { showDiscount = false } = {}) {
     return items.map((li, i) => {
         const qty = li.quantity ?? li.qty ?? 0;
         const price = li.price ?? li.buy_price ?? 0;
         const subtotal = li.subtotal ?? (qty * price);
-        const spec = formatSpec(li.specification);
-
-        const sub = [
-            li.item_code ? `<span>${esc(li.item_code)}</span>` : '',
-            li.serial_number ? `<span>SN: ${esc(li.serial_number)}</span>` : '',
+        const extras = [
+            Array.isArray(li.features) && li.features.length ? `Fitur: ${li.features.join(', ')}` : '',
+            Array.isArray(li.accessories) && li.accessories.length ? `Acc: ${li.accessories.join(', ')}` : '',
         ].filter(Boolean).join(' &nbsp;·&nbsp; ');
+
+        const sub = li.serial_number ? `<span>SN: ${esc(li.serial_number)}</span>` : '';
 
         return `<tr>
             <td class="idx">${i + 1}</td>
             <td>
                 <div class="item-name">${esc(li.item_name ?? li.name ?? '')}</div>
                 ${sub ? `<div class="item-sub">${sub}</div>` : ''}
-                ${spec ? `<div class="item-spec">${esc(spec)}</div>` : ''}
+                ${extras ? `<div class="item-spec">${esc(extras)}</div>` : ''}
             </td>
             <td class="num">${qty}</td>
             <td class="num">${num(price)}</td>

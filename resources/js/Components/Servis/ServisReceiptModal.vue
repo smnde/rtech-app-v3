@@ -136,7 +136,7 @@ const sendWa = async () => {
             class="mx-auto w-full max-w-[560px] rounded-sm bg-white p-6 text-[10px] leading-relaxed text-slate-800 shadow-lg ring-1 ring-slate-200">
             <div class="flex items-start justify-between gap-6 border-b-2 border-slate-900 pb-4">
                 <div class="flex items-center gap-2">
-                    <img src="/icons/apple-touch-icon.png" alt="logo" class="h-10 w-10 rounded-lg object-contain shrink-0" />
+                    <img src="/apple-touch-icon.png" alt="RTech App" class="h-9 w-9 rounded-lg shadow shrink-0" />
                     <div>
                         <p class="text-[15px] font-bold tracking-wide text-slate-900">{{ store.name || 'Toko' }}</p>
                         <p v-if="store.address" class="text-[9px] text-slate-500">{{ store.address }}</p>

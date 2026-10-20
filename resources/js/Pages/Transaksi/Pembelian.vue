@@ -2,7 +2,7 @@
 import { usePermission } from '@/composables/usePermission';
 import { ref, reactive, computed, watch } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Plus, Search, Truck, Inbox, X, Trash2 } from 'lucide-vue-next';
+import { Plus, Search, Truck, Inbox, X, Trash2, Eye } from 'lucide-vue-next';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import AppPageHeader from '@/Components/UI/AppPageHeader.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
@@ -12,6 +12,7 @@ import AppTable from '@/Components/UI/AppTable.vue';
 import AppDropdown from '@/Components/UI/AppDropdown.vue';
 import AppFilterModal from '@/Components/UI/AppFilterModal.vue';
 import AppDateRangePicker from '@/Components/UI/AppDateRangePicker.vue';
+import AppActionDrawer from '@/Components/UI/AppActionDrawer.vue';
 import AppConfirmModal from '@/Components/UI/AppConfirmModal.vue';
 import { useToast } from '@/composables/useToast';
 import { useConfirm } from '@/composables/useConfirm';
@@ -103,6 +104,10 @@ const resetFilter = () => {
 
 const formatRupiah = (value) => `Rp ${Number(value ?? 0).toLocaleString('id-ID')}`;
 
+const formatDateTime = (value) => (value
+    ? new Date(String(value).replace(' ', 'T')).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '—');
+
 const statusColor = { lunas: 'green', hutang: 'yellow' };
 
 const orderStatusColor = { ordered: 'blue', pending: 'yellow', done: 'green' };
@@ -117,6 +122,51 @@ const deletePurchase = async (row) => {
     });
     if (!ok) return;
     router.delete(route('transaksi.pembelian.destroy', row.id), { preserveScroll: true });
+};
+
+// Mobile action drawer
+const showActionDrawer = ref(false);
+const actionDrawerItem = ref(null);
+
+const openActionDrawer = (row) => {
+    actionDrawerItem.value = row;
+    showActionDrawer.value = true;
+};
+
+const closeActionDrawer = () => {
+    showActionDrawer.value = false;
+    actionDrawerItem.value = null;
+};
+
+const getDrawerActions = (row) => {
+    const actions = [];
+
+    // Lihat Detail
+    actions.push({
+        label: 'Lihat Detail',
+        icon: Eye,
+        onClick: () => {
+            closeActionDrawer();
+            router.visit(row.show_url);
+        },
+    });
+
+    // Divider before delete
+    if (can('delete purchase')) {
+        actions.push({ divider: true });
+
+        actions.push({
+            label: 'Hapus',
+            icon: Trash2,
+            class: 'text-red-600 dark:text-red-400',
+            onClick: () => {
+                closeActionDrawer();
+                deletePurchase(row);
+            },
+        });
+    }
+
+    return actions;
 };
 
 const columns = [
@@ -222,7 +272,7 @@ const columns = [
                         <td class="px-5 py-3">
                             <Link :href="row.show_url" class="font-mono text-sm font-medium text-primary-700 hover:underline dark:text-primary-400" @click.stop>{{ row.invoice }}</Link>
                         </td>
-                        <td class="px-5 py-3 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ row.date }}</td>
+                        <td class="px-5 py-3 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ formatDateTime(row.date) }}</td>
                         <td class="px-5 py-3 text-sm text-gray-700 dark:text-gray-300">{{ row.source_name ?? '—' }}</td>
                         <td class="px-5 py-3">
                             <AppBadge :color="orderStatusColor[row.status] ?? 'gray'" size="sm">{{ orderStatusLabel[row.status] ?? row.status }}</AppBadge>
@@ -253,23 +303,20 @@ const columns = [
                     <p class="text-sm text-gray-500 dark:text-gray-400">Tidak ada pembelian ditemukan.</p>
                 </div>
 
-                <Link
+                <div
                     v-for="row in rows"
                     :key="row.id"
-                    :href="row.show_url"
-                    class="block rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 shadow-sm transition-colors active:bg-gray-50 dark:active:bg-gray-800/50"
+                    class="block rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 shadow-sm transition-colors active:bg-gray-50 dark:active:bg-gray-800/50 cursor-pointer"
+                    @click="openActionDrawer(row)"
                 >
                     <div class="flex items-start justify-between gap-3">
                         <div class="min-w-0">
                             <p class="font-mono font-semibold text-gray-900 dark:text-white text-sm truncate">{{ row.invoice }}</p>
-                            <p class="mt-0.5 text-xs text-gray-400">{{ row.date }}</p>
+                            <p class="mt-0.5 text-xs text-gray-400">{{ formatDateTime(row.date) }}</p>
                         </div>
                         <div class="flex items-center gap-1.5">
                             <AppBadge :color="orderStatusColor[row.status] ?? 'gray'" size="sm">{{ orderStatusLabel[row.status] ?? row.status }}</AppBadge>
                             <AppBadge :color="statusColor[row.payment_status] ?? 'gray'" size="sm" dot>{{ row.payment_status }}</AppBadge>
-                            <AppButton v-if="can('delete purchase')" variant="ghost" size="sm" icon-only title="Hapus" @click.stop="deletePurchase(row)">
-                                <Trash2 class="h-4 w-4" />
-                            </AppButton>
                         </div>
                     </div>
 
@@ -283,7 +330,7 @@ const columns = [
                             <dd class="font-semibold text-gray-900 dark:text-white">{{ formatRupiah(row.total) }}</dd>
                         </div>
                     </dl>
-                </Link>
+                </div>
             </div>
 
             <div v-if="purchases.total > 0" class="mt-4 sm:hidden">
@@ -293,4 +340,13 @@ const columns = [
             <AppConfirmModal />
         </div>
     </AppLayout>
+
+    <!-- Mobile Action Drawer -->
+    <AppActionDrawer
+        :show="showActionDrawer"
+        :title="actionDrawerItem ? actionDrawerItem.invoice : 'Aksi'"
+        :item="actionDrawerItem"
+        :actions="actionDrawerItem ? getDrawerActions(actionDrawerItem) : []"
+        @close="closeActionDrawer"
+    />
 </template>

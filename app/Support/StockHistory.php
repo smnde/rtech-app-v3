@@ -33,7 +33,7 @@ final class StockHistory
                 'notes' => $movement->notes,
                 'user_name' => $movement->user?->name,
                 'movement_date' => $movement->movement_date?->toDateString(),
-                'created_at' => $movement->created_at?->toIso8601String(),
+                'created_at' => $movement->created_at?->toDateTimeString(),
             ])
             ->all();
     }

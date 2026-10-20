@@ -52,6 +52,14 @@ function formatSpec(spec) {
         .join(' · ');
 }
 
+// Fitur & aksesori untuk baris barang di nota (spec sudah tidak dicantumkan).
+function itemExtras(li) {
+    const extras = [];
+    if (Array.isArray(li.features) && li.features.length) extras.push(`Fitur: ${li.features.join(', ')}`);
+    if (Array.isArray(li.accessories) && li.accessories.length) extras.push(`Acc: ${li.accessories.join(', ')}`);
+    return extras;
+}
+
 const doPrint = () => printReceipt({ store: props.store, sale: props.sale, title: props.title });
 
 const sending = ref(false);
@@ -93,7 +101,7 @@ const sendWa = async () => {
             class="mx-auto w-full max-w-[560px] rounded-sm bg-white p-6 text-[10px] leading-relaxed text-slate-800 shadow-lg ring-1 ring-slate-200">
             <div class="flex items-start justify-between gap-6 border-b-2 border-slate-900 pb-4">
                 <div class="flex items-center gap-2">
-                    <img src="/icons/apple-touch-icon.png" alt="logo" class="h-10 w-10 rounded-lg object-contain shrink-0" />
+                    <img src="/apple-touch-icon.png" alt="RTech App" class="h-9 w-9 rounded-lg shadow shrink-0" />
                     <div>
                         <p class="text-[15px] font-bold tracking-wide text-slate-900">{{ store.name || 'Toko' }}</p>
                         <p v-if="store.address" class="text-[9px] text-slate-500">{{ store.address }}</p>
@@ -148,12 +156,10 @@ const sendWa = async () => {
                         <td class="px-1 py-1.5 text-slate-400">{{ i + 1 }}</td>
                         <td class="px-1 py-1.5">
                             <p class="font-semibold text-slate-900">{{ li.item_name ?? li.name }}</p>
-                            <p v-if="li.item_code || li.serial_number" class="text-[8px] text-slate-500">
-                                <span v-if="li.item_code">{{ li.item_code }}</span>
-                                <span v-if="li.item_code && li.serial_number"> · </span>
+<p class="text-[8px] text-slate-500">
                                 <span v-if="li.serial_number">SN: {{ li.serial_number }}</span>
+                                <span v-for="(x, xi) in itemExtras(li)" :key="xi"><span v-if="li.serial_number || xi > 0"> · </span>{{ x }}</span>
                             </p>
-                            <p v-if="formatSpec(li.specification)" class="text-[7.5px] text-slate-400">{{ formatSpec(li.specification) }}</p>
                         </td>
                         <td class="px-1 py-1.5 text-right tabular-nums">{{ li.quantity ?? li.qty }}</td>
                         <td class="px-1 py-1.5 text-right tabular-nums">{{ num(li.price ?? li.buy_price) }}</td>

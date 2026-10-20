@@ -2,12 +2,13 @@
 import { usePermission } from '@/composables/usePermission';
 import { ref, computed, watch } from 'vue';
 import { Head, router, usePage } from '@inertiajs/vue3';
-import { Plus, Search, Pencil, Trash2, Bookmark } from 'lucide-vue-next';
+import { Plus, Search, Pencil, Trash2, Bookmark, Eye } from 'lucide-vue-next';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import AppPageHeader from '@/Components/UI/AppPageHeader.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
 import AppPagination from '@/Components/UI/AppPagination.vue';
 import AppTable from '@/Components/UI/AppTable.vue';
+import AppActionDrawer from '@/Components/UI/AppActionDrawer.vue';
 import BrandFormModal from '@/Components/Brands/BrandFormModal.vue';
 import { useToast } from '@/composables/useToast';
 import { useConfirm } from '@/composables/useConfirm';
@@ -79,6 +80,66 @@ const handleDelete = async (brand) => {
     });
     if (!ok) return;
     router.delete(route('master.brand.destroy', brand.id), { preserveScroll: true });
+};
+
+// Mobile action drawer
+const showActionDrawer = ref(false);
+const actionDrawerItem = ref(null);
+
+const openActionDrawer = (item) => {
+    actionDrawerItem.value = item;
+    showActionDrawer.value = true;
+};
+
+const closeActionDrawer = () => {
+    showActionDrawer.value = false;
+    actionDrawerItem.value = null;
+};
+
+const getDrawerActions = (item) => {
+    const actions = [];
+
+    // Lihat Detail
+    actions.push({
+        label: 'Lihat Detail',
+        icon: Eye,
+        onClick: () => {
+            closeActionDrawer();
+            router.visit(route('master.brand.show', item.id));
+        },
+    });
+
+    // Divider
+    actions.push({ divider: true });
+
+    // Edit
+    if (can('edit brand')) {
+        actions.push({
+            label: 'Edit',
+            icon: Pencil,
+            onClick: () => {
+                closeActionDrawer();
+                openEdit(item);
+            },
+        });
+    }
+
+    // Divider before delete
+    if (can('delete brand')) {
+        actions.push({ divider: true });
+
+        actions.push({
+            label: 'Hapus',
+            icon: Trash2,
+            class: 'text-red-600 dark:text-red-400',
+            onClick: () => {
+                closeActionDrawer();
+                handleDelete(item);
+            },
+        });
+    }
+
+    return actions;
 };
 
 const brandBgColors = [
@@ -183,7 +244,8 @@ const brandColor = (idx) => brandBgColors[idx % brandBgColors.length];
                 <div
                     v-for="(brand, i) in rows"
                     :key="brand.id"
-                    class="flex items-center gap-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3.5 py-2 shadow-sm"
+                    class="flex items-center gap-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3.5 py-2 shadow-sm cursor-pointer active:bg-gray-50 dark:active:bg-gray-800/50"
+                    @click="openActionDrawer(brand)"
                 >
                     <div :class="['flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-xs font-bold', brandColor(i)]">
                         {{ brand.name.charAt(0).toUpperCase() }}
@@ -193,16 +255,6 @@ const brandColor = (idx) => brandBgColors[idx % brandBgColors.length];
                         <p class="truncate text-sm font-medium text-gray-900 dark:text-white">{{ brand.name }}</p>
                     </div>
 
-                    <div class="flex items-center gap-1 shrink-0">
-                        <AppButton v-if="can('edit brand')" variant="ghost" size="sm" icon-only @click="openEdit(brand)">
-                            <Pencil class="h-4 w-4" />
-                        </AppButton>
-                        <AppButton v-if="can('delete brand')" variant="ghost" size="sm" icon-only
-                            class="hover:!text-red-500 dark:hover:!text-red-400"
-                            @click="handleDelete(brand)">
-                            <Trash2 class="h-4 w-4" />
-                        </AppButton>
-                    </div>
                 </div>
             </div>
 
@@ -219,5 +271,14 @@ const brandColor = (idx) => brandBgColors[idx % brandBgColors.length];
         :brand="selectedBrand"
         @close="closeModal"
         @submit="handleSubmit"
+    />
+
+    <!-- Mobile Action Drawer -->
+    <AppActionDrawer
+        :show="showActionDrawer"
+        :title="actionDrawerItem ? actionDrawerItem.name : 'Aksi'"
+        :item="actionDrawerItem"
+        :actions="actionDrawerItem ? getDrawerActions(actionDrawerItem) : []"
+        @close="closeActionDrawer"
     />
 </template>

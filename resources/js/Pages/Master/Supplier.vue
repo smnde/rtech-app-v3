@@ -2,12 +2,13 @@
 import { usePermission } from '@/composables/usePermission';
 import { ref, computed, watch } from 'vue';
 import { Head, router, usePage } from '@inertiajs/vue3';
-import { Plus, Search, Pencil, Trash2, Truck, Phone } from 'lucide-vue-next';
+import { Plus, Search, Pencil, Trash2, Truck, Phone, Eye } from 'lucide-vue-next';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import AppPageHeader from '@/Components/UI/AppPageHeader.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
 import AppPagination from '@/Components/UI/AppPagination.vue';
 import AppTable from '@/Components/UI/AppTable.vue';
+import AppActionDrawer from '@/Components/UI/AppActionDrawer.vue';
 import SupplierFormModal from '@/Components/Suppliers/SupplierFormModal.vue';
 import { useToast } from '@/composables/useToast';
 import { useConfirm } from '@/composables/useConfirm';
@@ -79,6 +80,66 @@ const handleDelete = async (item) => {
     });
     if (!ok) return;
     router.delete(route('master.supplier.destroy', item.id), { preserveScroll: true });
+};
+
+// Mobile action drawer
+const showActionDrawer = ref(false);
+const actionDrawerItem = ref(null);
+
+const openActionDrawer = (item) => {
+    actionDrawerItem.value = item;
+    showActionDrawer.value = true;
+};
+
+const closeActionDrawer = () => {
+    showActionDrawer.value = false;
+    actionDrawerItem.value = null;
+};
+
+const getDrawerActions = (item) => {
+    const actions = [];
+
+    // Lihat Detail
+    actions.push({
+        label: 'Lihat Detail',
+        icon: Eye,
+        onClick: () => {
+            closeActionDrawer();
+            router.visit(route('master.supplier.show', item.id));
+        },
+    });
+
+    // Divider
+    actions.push({ divider: true });
+
+    // Edit
+    if (can('edit supplier')) {
+        actions.push({
+            label: 'Edit',
+            icon: Pencil,
+            onClick: () => {
+                closeActionDrawer();
+                openEdit(item);
+            },
+        });
+    }
+
+    // Divider before delete
+    if (can('delete supplier')) {
+        actions.push({ divider: true });
+
+        actions.push({
+            label: 'Hapus',
+            icon: Trash2,
+            class: 'text-red-600 dark:text-red-400',
+            onClick: () => {
+                closeActionDrawer();
+                handleDelete(item);
+            },
+        });
+    }
+
+    return actions;
 };
 </script>
 
@@ -174,23 +235,14 @@ const handleDelete = async (item) => {
                 <div
                     v-for="item in rows"
                     :key="item.id"
-                    class="flex items-center justify-between gap-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3.5 py-2 shadow-sm"
+                    class="flex items-center justify-between gap-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3.5 py-2 shadow-sm cursor-pointer active:bg-gray-50 dark:active:bg-gray-800/50"
+                    @click="openActionDrawer(item)"
                 >
                     <div class="min-w-0">
                         <p class="truncate text-sm font-medium text-gray-900 dark:text-white">{{ item.name }}</p>
                         <p class="truncate text-xs text-gray-500 dark:text-gray-400">{{ item.phone ?? '—' }}</p>
                     </div>
 
-                    <div class="flex items-center gap-1 shrink-0">
-                        <AppButton v-if="can('edit supplier')" variant="ghost" size="sm" icon-only @click="openEdit(item)">
-                            <Pencil class="h-4 w-4" />
-                        </AppButton>
-                        <AppButton v-if="can('delete supplier')" variant="ghost" size="sm" icon-only
-                            class="hover:!text-red-500 dark:hover:!text-red-400"
-                            @click="handleDelete(item)">
-                            <Trash2 class="h-4 w-4" />
-                        </AppButton>
-                    </div>
                 </div>
             </div>
 
@@ -207,5 +259,14 @@ const handleDelete = async (item) => {
         :item="selectedItem"
         @close="closeModal"
         @submit="handleSubmit"
+    />
+
+    <!-- Mobile Action Drawer -->
+    <AppActionDrawer
+        :show="showActionDrawer"
+        :title="actionDrawerItem ? actionDrawerItem.name : 'Aksi'"
+        :item="actionDrawerItem"
+        :actions="actionDrawerItem ? getDrawerActions(actionDrawerItem) : []"
+        @close="closeActionDrawer"
     />
 </template>

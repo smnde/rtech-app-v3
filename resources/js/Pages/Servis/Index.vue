@@ -1,7 +1,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Plus, Search, Pencil, Trash2, Wrench, CheckCircle2, RefreshCw } from 'lucide-vue-next';
+import { Plus, Search, Pencil, Trash2, Wrench, CheckCircle2, RefreshCw, Printer, Eye } from 'lucide-vue-next';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import AppPageHeader from '@/Components/UI/AppPageHeader.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
@@ -11,6 +11,8 @@ import AppTable from '@/Components/UI/AppTable.vue';
 import AppDropdown from '@/Components/UI/AppDropdown.vue';
 import AppDateRangePicker from '@/Components/UI/AppDateRangePicker.vue';
 import AppFilterModal from '@/Components/UI/AppFilterModal.vue';
+import AppModal from '@/Components/UI/AppModal.vue';
+import AppActionDrawer from '@/Components/UI/AppActionDrawer.vue';
 import ServisFormModal from '@/Components/Servis/ServisFormModal.vue';
 import ServisConfirmModal from '@/Components/Servis/ServisConfirmModal.vue';
 import ServisStatusModal from '@/Components/Servis/ServisStatusModal.vue';
@@ -239,6 +241,100 @@ const handleDelete = async (item) => {
 };
 
 const cardClass = 'rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900';
+
+// Mobile action drawer
+const showActionDrawer = ref(false);
+const actionDrawerItem = ref(null);
+
+const openActionDrawer = (item) => {
+    actionDrawerItem.value = item;
+    showActionDrawer.value = true;
+};
+
+const closeActionDrawer = () => {
+    showActionDrawer.value = false;
+    actionDrawerItem.value = null;
+};
+
+const getDrawerActions = (item) => {
+    const actions = [];
+
+    // Lihat Detail
+    actions.push({
+        label: 'Lihat Detail',
+        icon: Eye,
+        onClick: () => {
+            closeActionDrawer();
+            router.visit(route('servis.show', item.id));
+        },
+    });
+
+    // Cetak Nota (print)
+    actions.push({
+        label: 'Cetak Nota',
+        icon: Printer,
+        onClick: () => {
+            closeActionDrawer();
+            window.open(route('servis.print', item.id), '_blank');
+        },
+    });
+
+    // Divider
+    actions.push({ divider: true });
+
+    // Konfirmasi
+    if (can('edit reparation') && item.status !== 'TAKEN' && item.status !== 'CANCEL') {
+        actions.push({
+            label: 'Konfirmasi',
+            icon: CheckCircle2,
+            onClick: () => {
+                closeActionDrawer();
+                openConfirm(item);
+            },
+        });
+    }
+
+    // Ubah Status
+    if (can('edit reparation')) {
+        actions.push({
+            label: 'Ubah Status',
+            icon: RefreshCw,
+            onClick: () => {
+                closeActionDrawer();
+                openStatus(item);
+            },
+        });
+    }
+
+    // Edit
+    if (can('edit reparation')) {
+        actions.push({
+            label: 'Edit',
+            icon: Pencil,
+            onClick: () => {
+                closeActionDrawer();
+                openEdit(item);
+            },
+        });
+    }
+
+    // Divider before delete
+    if (can('delete reparation')) {
+        actions.push({ divider: true });
+
+        actions.push({
+            label: 'Hapus',
+            icon: Trash2,
+            class: 'text-red-600 dark:text-red-400',
+            onClick: () => {
+                closeActionDrawer();
+                handleDelete(item);
+            },
+        });
+    }
+
+    return actions;
+};
 </script>
 
 <template>
@@ -372,11 +468,11 @@ const cardClass = 'rounded-xl border border-gray-200 dark:border-gray-800 bg-whi
                     <p class="text-sm text-gray-500 dark:text-gray-400">Belum ada servis.</p>
                 </div>
 
-                <Link
+                <div
                     v-for="item in rows"
                     :key="item.id"
-                    :href="route('servis.show', item.id)"
-                    :class="[cardClass, 'block px-3 py-2.5']"
+                    :class="[cardClass, 'block px-3 py-2.5 cursor-pointer transition-colors active:bg-gray-50 dark:active:bg-gray-800/50']"
+                    @click="openActionDrawer(item)"
                 >
                     <div class="flex items-center justify-between gap-2">
                         <p class="min-w-0 truncate text-sm font-semibold text-gray-900 dark:text-white">{{ item.item_name }}</p>
@@ -392,7 +488,7 @@ const cardClass = 'rounded-xl border border-gray-200 dark:border-gray-800 bg-whi
                             {{ formatDeadline(deadlineFor(item).value) }}
                         </span>
                     </div>
-                </Link>
+                </div>
             </div>
             <div v-if="reparations.total > 0" class="mt-4 sm:hidden">
                 <AppPagination :paginator="reparations" />
@@ -427,5 +523,13 @@ const cardClass = 'rounded-xl border border-gray-200 dark:border-gray-800 bg-whi
         :saving="saving"
         @close="closeActionModals"
         @submit="submitStatus"
+    />
+
+    <AppActionDrawer
+        :show="showActionDrawer"
+        :title="actionDrawerItem ? actionDrawerItem.item_name : 'Aksi'"
+        :item="actionDrawerItem"
+        :actions="actionDrawerItem ? getDrawerActions(actionDrawerItem) : []"
+        @close="closeActionDrawer"
     />
 </template>

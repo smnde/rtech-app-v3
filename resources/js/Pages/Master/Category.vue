@@ -2,12 +2,13 @@
 import { usePermission } from '@/composables/usePermission';
 import { ref, computed, watch } from 'vue';
 import { Head, router, usePage } from '@inertiajs/vue3';
-import { Plus, Search, Pencil, Trash2, Tag } from 'lucide-vue-next';
+import { Plus, Search, Pencil, Trash2, Tag, Eye } from 'lucide-vue-next';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import AppPageHeader from '@/Components/UI/AppPageHeader.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
 import AppPagination from '@/Components/UI/AppPagination.vue';
 import AppTable from '@/Components/UI/AppTable.vue';
+import AppActionDrawer from '@/Components/UI/AppActionDrawer.vue';
 import CategoryFormModal from '@/Components/Categories/CategoryFormModal.vue';
 import { useToast } from '@/composables/useToast';
 import { useConfirm } from '@/composables/useConfirm';
@@ -79,6 +80,66 @@ const handleDelete = async (cat) => {
     });
     if (!ok) return;
     router.delete(route('master.category.destroy', cat.id), { preserveScroll: true });
+};
+
+// Mobile action drawer
+const showActionDrawer = ref(false);
+const actionDrawerItem = ref(null);
+
+const openActionDrawer = (item) => {
+    actionDrawerItem.value = item;
+    showActionDrawer.value = true;
+};
+
+const closeActionDrawer = () => {
+    showActionDrawer.value = false;
+    actionDrawerItem.value = null;
+};
+
+const getDrawerActions = (item) => {
+    const actions = [];
+
+    // Lihat Detail
+    actions.push({
+        label: 'Lihat Detail',
+        icon: Eye,
+        onClick: () => {
+            closeActionDrawer();
+            router.visit(route('master.category.show', item.id));
+        },
+    });
+
+    // Divider
+    actions.push({ divider: true });
+
+    // Edit
+    if (can('edit category')) {
+        actions.push({
+            label: 'Edit',
+            icon: Pencil,
+            onClick: () => {
+                closeActionDrawer();
+                openEdit(item);
+            },
+        });
+    }
+
+    // Divider before delete
+    if (can('delete category')) {
+        actions.push({ divider: true });
+
+        actions.push({
+            label: 'Hapus',
+            icon: Trash2,
+            class: 'text-red-600 dark:text-red-400',
+            onClick: () => {
+                closeActionDrawer();
+                handleDelete(item);
+            },
+        });
+    }
+
+    return actions;
 };
 </script>
 
@@ -172,7 +233,8 @@ const handleDelete = async (cat) => {
                 <div
                     v-for="cat in rows"
                     :key="cat.id"
-                    class="flex items-center gap-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3.5 py-2 shadow-sm"
+                    class="flex items-center gap-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3.5 py-2 shadow-sm cursor-pointer active:bg-gray-50 dark:active:bg-gray-800/50"
+                    @click="openActionDrawer(cat)"
                 >
                     <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400">
                         <Tag class="h-3.5 w-3.5" />
@@ -182,16 +244,6 @@ const handleDelete = async (cat) => {
                         <p class="truncate text-sm font-medium text-gray-900 dark:text-white">{{ cat.name }}</p>
                     </div>
 
-                    <div class="flex items-center gap-1 shrink-0">
-                        <AppButton v-if="can('edit category')" variant="ghost" size="sm" icon-only @click="openEdit(cat)">
-                            <Pencil class="h-4 w-4" />
-                        </AppButton>
-                        <AppButton v-if="can('delete category')" variant="ghost" size="sm" icon-only
-                            class="hover:!text-red-500 dark:hover:!text-red-400"
-                            @click="handleDelete(cat)">
-                            <Trash2 class="h-4 w-4" />
-                        </AppButton>
-                    </div>
                 </div>
             </div>
 
@@ -208,5 +260,14 @@ const handleDelete = async (cat) => {
         :category="selectedCategory"
         @close="closeModal"
         @submit="handleSubmit"
+    />
+
+    <!-- Mobile Action Drawer -->
+    <AppActionDrawer
+        :show="showActionDrawer"
+        :title="actionDrawerItem ? actionDrawerItem.name : 'Aksi'"
+        :item="actionDrawerItem"
+        :actions="actionDrawerItem ? getDrawerActions(actionDrawerItem) : []"
+        @close="closeActionDrawer"
     />
 </template>

@@ -28,7 +28,7 @@ class ReportsController extends Controller
             ->flatMap(fn (Sale $sale) => $sale->details->map(fn ($detail) => [
                 'invoice' => $sale->invoice,
                 'sale_id' => $sale->id,
-                'date' => $sale->created_at->toDateString(),
+                'date' => $sale->created_at->toDateTimeString(),
                 'item_name' => $detail->item?->name ?? '-',
                 'qty' => (int) $detail->qty,
                 'subtotal' => (float) $detail->subtotal,
@@ -68,7 +68,7 @@ class ReportsController extends Controller
                     return [[
                         'invoice' => $reparation->invoice,
                         'id' => $reparation->id,
-                        'date' => $reparation->created_at->toDateString(),
+                        'date' => $reparation->created_at->toDateTimeString(),
                         'customer' => $reparation->customer?->name ?? 'Umum',
                         'label' => '-',
                         'cost' => (float) (($reparation->total_price ?? 0) ?: $reparation->confirmedTotal()),
@@ -79,7 +79,7 @@ class ReportsController extends Controller
                 return $items->map(fn ($item) => [
                     'invoice' => $reparation->invoice,
                     'id' => $reparation->id,
-                    'date' => $reparation->created_at->toDateString(),
+                    'date' => $reparation->created_at->toDateTimeString(),
                     'customer' => $reparation->customer?->name ?? 'Umum',
                     'label' => $item->label,
                     'cost' => (float) $item->cost,
@@ -114,7 +114,7 @@ class ReportsController extends Controller
             ->flatMap(fn (Purchase $purchase) => $purchase->details->map(fn ($detail) => [
                 'invoice' => $purchase->invoice,
                 'purchase_id' => $purchase->id,
-                'date' => $purchase->created_at->toDateString(),
+                'date' => $purchase->created_at->toDateTimeString(),
                 'item_name' => $detail->item?->name ?? '-',
                 'qty' => (int) $detail->qty,
                 'subtotal' => (float) $detail->subtotal,
@@ -146,7 +146,7 @@ class ReportsController extends Controller
             'filters' => ['from' => $from, 'to' => $to],
             'rows' => $expenses->map(fn (Expense $expense) => [
                 'id' => $expense->id,
-                'date' => $expense->created_at->toDateString(),
+                'date' => $expense->created_at->toDateTimeString(),
                 'category' => $expense->category,
                 'description' => $expense->description,
                 'amount' => (float) $expense->amount,
@@ -174,7 +174,7 @@ class ReportsController extends Controller
             'filters' => ['from' => $from, 'to' => $to],
             'rows' => $movements->map(fn (StockMovement $movement) => [
                 'id' => $movement->id,
-                'date' => $movement->movement_date?->toDateString(),
+                'date' => $movement->created_at?->toDateTimeString(),
                 'item_name' => $movement->item?->name ?? '-',
                 'item_type' => $movement->item_type,
                 'status' => $movement->status,

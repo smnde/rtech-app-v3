@@ -128,7 +128,7 @@ const rupiah = (value) => (value === null || value === undefined || value === ''
     : new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value));
 
 const formatDateTime = (value) => (value
-    ? new Date(value).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    ? new Date(String(value).replace(' ', 'T')).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
     : '—');
 
 const stockHistory = computed(() =>
@@ -164,11 +164,6 @@ const specRows = computed(() => Object.entries(specLabels).map(([key, label]) =>
     label,
     value: props.item.specification?.[key] || '-',
 })));
-
-const tagGroups = computed(() => [
-    ...(isLaptop.value ? [{ label: 'Fitur', items: props.item.features ?? [], cls: 'border-indigo-500/20 bg-indigo-500/10 text-indigo-600 dark:text-indigo-300' }] : []),
-    ...(hasAccessories.value ? [{ label: 'Aksesori', items: props.item.accessories ?? [], cls: 'border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-300' }] : []),
-]);
 
 const issues = computed(() => props.item.issue_notes ?? []);
 const showIssueModal = ref(false);
@@ -206,6 +201,9 @@ const formatMovementQuantity = (movement) => {
     if (movement.type === 'out') return `−${movement.quantity}`;
     return `set ${movement.quantity}`;
 };
+
+// Bagian kanan desktop (spek/fitur/aksesori/kendala) dirender juga untuk mobile
+// lewat komponen <RightSections> di bawah agar urutan mobile rapi.
 </script>
 
 <template>
@@ -232,193 +230,205 @@ const formatMovementQuantity = (movement) => {
                 </div>
             </div>
 
-            <div class="scrollbar-styled scrollbar-mobile-hidden flex-1 min-h-0 overflow-auto grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <!--
+                Urutan mobile: Informasi umum → Spesifikasi → Fitur → Aksesori → Kendala
+                                → Riwayat Aktivitas → Riwayat Stok (mutasi).
+                Desktop: kiri 2 kolom (info, log, mutasi) + kanan 1 kolom (spek, fitur, aksesori, kendala).
+                Source order = urutan mobile. Penempatan desktop via lg:col-start/row-start.
+            -->
+            <div class="scrollbar-styled scrollbar-mobile-hidden flex-1 min-h-0 overflow-auto flex flex-col gap-4 lg:grid lg:grid-cols-3">
 
-                <!-- Kiri -->
-                <div class="lg:col-span-2 space-y-4">
-
-                    <!-- Informasi umum -->
-                    <div :class="cardClass">
-                        <div class="mb-3 flex items-center justify-between gap-3">
-                            <h2 :class="sectionTitle" class="mb-0">Informasi Umum</h2>
-                            <span v-if="item.code" class="rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 font-mono text-xs font-medium text-gray-600 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                                {{ item.code }}
-                            </span>
-                        </div>
-
-                        <p class="text-lg font-bold text-gray-900 dark:text-white">{{ item.name }}</p>
-                        <p class="mb-4 font-mono text-sm text-gray-500 dark:text-gray-400">{{ item.sku }}</p>
-
-                        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                            <div v-for="cell in infoCells" :key="cell.label" :class="cell.tone ? ['rounded-lg p-3', cell.tone] : ''">
-                                <p :class="labelClass">{{ cell.label }}</p>
-                                <span v-if="cell.status !== undefined"
-                                    :class="['inline-block rounded-full border px-2 py-0.5 text-xs font-medium', STATUS_COLOR[cell.status] ?? STATUS_COLOR['HABIS']]">
-                                    {{ cell.status || '-' }}
-                                </span>
-                                <p v-else
-                                    :class="['text-sm', cell.mono ? 'font-mono font-medium' : '',
-                                        cell.lowStock ? 'font-semibold text-red-500' : 'text-gray-900 dark:text-white']">
-                                    {{ cell.value || '-' }}
-                                </p>
-                            </div>
-                        </div>
-
-                        <p v-if="item.notes" class="mt-4 rounded-lg bg-gray-50 p-3 text-sm text-gray-600 dark:bg-gray-800/50 dark:text-gray-300">
-                            {{ item.notes }}
-                        </p>
+                <!-- 1. Informasi umum — kiri (col 1-2, row 1) -->
+                <div :class="cardClass" class="lg:col-span-2 lg:row-start-1">
+                    <div class="mb-3 flex items-center justify-between gap-3">
+                        <h2 :class="sectionTitle" class="mb-0">Informasi Umum</h2>
+                        <span v-if="item.code" class="rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 font-mono text-xs font-medium text-gray-600 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                            {{ item.code }}
+                        </span>
                     </div>
 
-                    <!-- Riwayat stok -->
-                    <div :class="cardClass">
-                        <h2 :class="sectionTitle">Riwayat Stok</h2>
-                        <div v-if="stockHistory.length" class="space-y-2.5">
-                            <div v-for="movement in stockHistory" :key="movement.id"
-                                class="flex items-start gap-3 rounded-lg border border-gray-100 bg-gray-50/60 p-2.5 dark:border-gray-800 dark:bg-gray-800/30">
-                                <span :class="['shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold', (MOVEMENT_LABEL[movement.type] ?? MOVEMENT_LABEL.adjustment).cls]">
+                    <p class="text-lg font-bold text-gray-900 dark:text-white">{{ item.name }}</p>
+                    <p class="mb-4 font-mono text-sm text-gray-500 dark:text-gray-400">{{ item.sku }}</p>
+
+                    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                        <div v-for="cell in infoCells" :key="cell.label" :class="cell.tone ? ['rounded-lg p-3', cell.tone] : ''">
+                            <p :class="labelClass">{{ cell.label }}</p>
+                            <span v-if="cell.status !== undefined"
+                                :class="['inline-block rounded-full border px-2 py-0.5 text-xs font-medium', STATUS_COLOR[cell.status] ?? STATUS_COLOR['HABIS']]">
+                                {{ cell.status || '-' }}
+                            </span>
+                            <p v-else
+                                :class="['text-sm', cell.mono ? 'font-mono font-medium' : '',
+                                    cell.lowStock ? 'font-semibold text-red-500' : 'text-gray-900 dark:text-white']">
+                                {{ cell.value || '-' }}
+                            </p>
+                        </div>
+                    </div>
+
+                    <p v-if="item.notes" class="mt-4 rounded-lg bg-gray-50 p-3 text-sm text-gray-600 dark:bg-gray-800/50 dark:text-gray-300">
+                        {{ item.notes }}
+                    </p>
+                </div>
+
+                <!-- 2. Spesifikasi — kanan (col 3, row 1) -->
+                <div v-if="hasSpecification" :class="cardClass" class="lg:col-start-3 lg:row-start-1">
+                    <h2 :class="sectionTitle">Spesifikasi</h2>
+                    <div class="space-y-2">
+                        <div v-for="row in specRows" :key="row.label" class="flex gap-3 text-sm">
+                            <span class="w-20 shrink-0 pt-0.5 text-xs font-medium uppercase text-gray-500 dark:text-gray-500">{{ row.label }}</span>
+                            <span class="text-gray-800 dark:text-gray-200">{{ row.value }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Fitur — kanan (col 3, row 2), laptop only -->
+                <div v-if="isLaptop" :class="[cardClass, 'lg:col-start-3 lg:row-start-2']">
+                    <h2 :class="sectionTitle">Fitur</h2>
+                    <div v-if="(item.features ?? []).length" class="flex flex-wrap gap-1.5">
+                        <span v-for="(tag, index) in (item.features ?? [])" :key="`f-${index}`"
+                            class="rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-1 text-xs text-indigo-600 dark:text-indigo-300">
+                            {{ tag }}
+                        </span>
+                    </div>
+                    <p v-else class="text-xs text-gray-400 dark:text-gray-600">-</p>
+                </div>
+
+                <!-- 4. Aksesori — kanan (col 3, row 3), laptop/gadget -->
+                <div v-if="hasAccessories" :class="[cardClass, 'lg:col-start-3 lg:row-start-3']">
+                    <h2 :class="sectionTitle">Aksesori</h2>
+                    <div v-if="(item.accessories ?? []).length" class="flex flex-wrap gap-1.5">
+                        <span v-for="(tag, index) in (item.accessories ?? [])" :key="`a-${index}`"
+                            class="rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-xs text-amber-600 dark:text-amber-300">
+                            {{ tag }}
+                        </span>
+                    </div>
+                    <p v-else class="text-xs text-gray-400 dark:text-gray-600">-</p>
+                </div>
+
+                <!-- 5. Kendala — kanan (col 3, row 4) -->
+                <div v-if="hasSpecification" :class="[cardClass, 'border-red-100 dark:border-red-500/20']" class="lg:col-start-3 lg:row-start-4">
+                    <div class="mb-3 flex items-center justify-between gap-2">
+                        <h2 class="text-xs font-semibold uppercase tracking-wider text-red-500 dark:text-red-400">Kendala</h2>
+                        <AppButton v-if="can('edit laptop')" size="sm" variant="outline" @click="showIssueModal = true">
+                            <Plus class="h-3.5 w-3.5" />
+                            Tambah
+                        </AppButton>
+                    </div>
+                    <div v-if="issues.length" class="space-y-1.5">
+                        <label v-for="issue in issues" :key="issue.id"
+                            :class="['flex items-start gap-2.5 rounded-lg border p-2 text-xs transition-colors',
+                                    issue.solved ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-red-500/20 bg-red-500/5']">
+                            <input type="checkbox" :checked="issue.solved" :disabled="!can('edit laptop') || issueToggling === issue.id"
+                                class="mt-0.5 h-3.5 w-3.5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                                @change="toggleIssue(issue)" />
+                            <div class="min-w-0 flex-1">
+                                <p :class="issue.solved ? 'text-gray-500 line-through dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'">{{ issue.text }}</p>
+                                <p v-if="issue.solved" class="mt-0.5 text-[10px] text-emerald-600 dark:text-emerald-400">
+                                    ✓ Selesai {{ formatDateTime(issue.solved_at) }}
+                                </p>
+                            </div>
+                        </label>
+                    </div>
+                    <p v-else class="text-xs text-gray-400 dark:text-gray-600">Tidak ada kendala.</p>
+                </div>
+
+                <!-- 6. Riwayat aktivitas — kiri (col 1-2, row 2) -->
+                <div v-if="isLaptop" :class="cardClass" class="lg:col-span-2 lg:row-start-2">
+                    <div class="mb-3 flex items-center justify-between gap-3">
+                        <h2 :class="sectionTitle" class="mb-0">Riwayat Aktivitas</h2>
+                        <AppButton v-if="can('edit laptop')" size="sm" @click="showLogModal = true">
+                            <Plus class="h-3.5 w-3.5" />
+                            Tambah Log
+                        </AppButton>
+                    </div>
+
+                    <div v-if="logs.length" class="ml-1.5 space-y-4 border-l-2 border-gray-200 pl-4 dark:border-gray-800">
+                        <ItemLogCard v-for="log in visibleLogs" :key="log.id" :log="log"
+                            :can-delete="canDeleteLog(log)"
+                            @delete="deleteLog" />
+                    </div>
+                    <p v-else class="text-sm text-gray-400 dark:text-gray-500">Belum ada log aktivitas.</p>
+
+                    <button v-if="logs.length > logPreviewCount" type="button"
+                        class="mt-4 text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+                        @click="showAllLogs = !showAllLogs">
+                        {{ showAllLogs ? 'Tampilkan lebih sedikit' : `Lihat semua (${logs.length})` }}
+                    </button>
+                </div>
+
+                <!-- 7. Riwayat stok (mutasi) — kiri (col 1-2, row 3) -->
+                <div :class="cardClass" class="lg:col-span-2 lg:row-start-3">
+                    <h2 :class="sectionTitle">Riwayat Stok</h2>
+                    <div v-if="stockHistory.length" class="space-y-2.5">
+                        <div v-for="movement in stockHistory" :key="movement.id"
+                            class="rounded-lg border border-gray-100 bg-gray-50/60 p-3 dark:border-gray-800 dark:bg-gray-800/30">
+                            <div class="mb-2 flex flex-wrap items-center gap-1.5">
+                                <span :class="['rounded-full border px-2 py-0.5 text-[11px] font-semibold', (MOVEMENT_LABEL[movement.type] ?? MOVEMENT_LABEL.adjustment).cls]">
                                     {{ (MOVEMENT_LABEL[movement.type] ?? MOVEMENT_LABEL.adjustment).text }}
                                 </span>
                                 <span v-if="movement.status"
-                                    :class="['shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold', (MOVEMENT_STATUS[movement.status] ?? MOVEMENT_STATUS.TERJUAL).cls]">
+                                    :class="['rounded-full border px-2 py-0.5 text-[11px] font-semibold', (MOVEMENT_STATUS[movement.status] ?? MOVEMENT_STATUS.TERJUAL).cls]">
                                     {{ (MOVEMENT_STATUS[movement.status] ?? { text: movement.status }).text }}
                                 </span>
-                                <div class="min-w-0 flex-1">
-                                    <div class="flex items-center justify-between gap-2">
-                                        <p class="text-sm font-medium tabular-nums text-gray-800 dark:text-gray-200">
-                                            {{ formatMovementQuantity(movement) }}
-                                        </p>
-                                        <p class="text-[11px] tabular-nums text-gray-400 dark:text-gray-500">
-                                            {{ formatDateTime(movement.created_at) }}
-                                        </p>
-                                    </div>
-                                    <div class="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[11px] text-gray-500 dark:text-gray-400">
-                                        <span>Stok: {{ movement.stock_before }} → <span class="font-medium text-gray-700 dark:text-gray-300">{{ movement.stock_after }}</span></span>
-                                        <span v-if="movement.user_name">· {{ movement.user_name }}</span>
-                                    </div>
-                                    <p v-if="movement.reference || movement.notes" class="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">
-                                        <span v-if="movement.reference" class="font-mono">{{ movement.reference }}</span>
-                                        <span v-if="movement.reference && movement.notes"> · </span>
-                                        <span v-if="movement.notes">{{ movement.notes }}</span>
-                                    </p>
+                                <span class="ml-auto text-[11px] tabular-nums text-gray-400 dark:text-gray-500">
+                                    {{ formatDateTime(movement.created_at) }}
+                                </span>
+                            </div>
+                            <div class="min-w-0">
+                                <p class="text-sm font-medium tabular-nums text-gray-800 dark:text-gray-200">
+                                    {{ formatMovementQuantity(movement) }}
+                                </p>
+                                <div class="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+                                    <span>Stok: {{ movement.stock_before }} → <span class="font-medium text-gray-700 dark:text-gray-300">{{ movement.stock_after }}</span></span>
+                                    <span v-if="movement.user_name">· {{ movement.user_name }}</span>
                                 </div>
+                                <p v-if="movement.reference || movement.notes" class="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">
+                                    <span v-if="movement.reference" class="font-mono">{{ movement.reference }}</span>
+                                    <span v-if="movement.reference && movement.notes"> · </span>
+                                    <span v-if="movement.notes">{{ movement.notes }}</span>
+                                </p>
                             </div>
                         </div>
-                        <p v-else class="text-sm text-gray-400 dark:text-gray-500">Belum ada mutasi stok tercatat.</p>
                     </div>
-
-                    <!-- Riwayat aktivitas -->
-                    <div v-if="isLaptop" :class="cardClass">
-                        <div class="mb-3 flex items-center justify-between gap-3">
-                            <h2 :class="sectionTitle" class="mb-0">Riwayat Aktivitas</h2>
-                            <AppButton v-if="can('edit laptop')" size="sm" @click="showLogModal = true">
-                                <Plus class="h-3.5 w-3.5" />
-                                Tambah Log
-                            </AppButton>
-                        </div>
-
-                        <div v-if="logs.length" class="ml-1.5 space-y-4 border-l-2 border-gray-200 pl-4 dark:border-gray-800">
-                            <ItemLogCard v-for="log in visibleLogs" :key="log.id" :log="log"
-                                :can-delete="canDeleteLog(log)"
-                                @delete="deleteLog" />
-                        </div>
-                        <p v-else class="text-sm text-gray-400 dark:text-gray-500">Belum ada log aktivitas.</p>
-
-                        <button v-if="logs.length > logPreviewCount" type="button"
-                            class="mt-4 text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400"
-                            @click="showAllLogs = !showAllLogs">
-                            {{ showAllLogs ? 'Tampilkan lebih sedikit' : `Lihat semua (${logs.length})` }}
-                        </button>
-                    </div>
-
-                    <AppModal :show="showLogModal" title="Tambah Log Aktivitas" size="md" @close="showLogModal = false">
-                        <ItemLogForm
-                            :specification="item.specification"
-                            :users="users"
-                            :statuses="LAPTOP_STATUSES"
-                            :processing="logProcessing"
-                            @submit="submitLog"
-                            @cancel="showLogModal = false" />
-                    </AppModal>
-
-                    <LaptopFormModal
-                        v-if="isLaptop"
-                        ref="editModalRef"
-                        :show="showEditModal"
-                        :item="item"
-                        :brands="brands"
-                        :suppliers="suppliers"
-                        @close="showEditModal = false"
-                        @submit="handleEditSubmit"
-                    />
+                    <p v-else class="text-sm text-gray-400 dark:text-gray-500">Belum ada mutasi stok tercatat.</p>
                 </div>
-
-                <!-- Kanan -->
-                <div class="space-y-4">
-
-                    <div v-if="hasSpecification" :class="cardClass">
-                        <h2 :class="sectionTitle">Spesifikasi</h2>
-                        <div class="space-y-2">
-                            <div v-for="row in specRows" :key="row.label" class="flex gap-3 text-sm">
-                                <span class="w-20 shrink-0 pt-0.5 text-xs font-medium uppercase text-gray-500 dark:text-gray-500">{{ row.label }}</span>
-                                <span class="text-gray-800 dark:text-gray-200">{{ row.value }}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div v-for="group in tagGroups" :key="group.label" :class="cardClass">
-                        <h2 :class="sectionTitle">{{ group.label }}</h2>
-                        <div v-if="group.items.length" class="flex flex-wrap gap-1.5">
-                            <span v-for="(tag, index) in group.items" :key="`${tag}-${index}`"
-                                :class="['rounded-full border px-2.5 py-1 text-xs', group.cls]">
-                                {{ tag }}
-                            </span>
-                        </div>
-                        <p v-else class="text-xs text-gray-400 dark:text-gray-600">-</p>
-                    </div>
-
-                    <div v-if="hasSpecification" :class="[cardClass, 'border-red-100 dark:border-red-500/20']">
-                        <div class="mb-3 flex items-center justify-between gap-2">
-                            <h2 class="text-xs font-semibold uppercase tracking-wider text-red-500 dark:text-red-400">Kendala</h2>
-                            <AppButton v-if="can('edit laptop')" size="sm" variant="outline" @click="showIssueModal = true">
-                                <Plus class="h-3.5 w-3.5" />
-                                Tambah
-                            </AppButton>
-                        </div>
-                        <div v-if="issues.length" class="space-y-1.5">
-                            <label v-for="issue in issues" :key="issue.id"
-                                :class="['flex items-start gap-2.5 rounded-lg border p-2 text-xs transition-colors',
-                                    issue.solved ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-red-500/20 bg-red-500/5']">
-                                <input type="checkbox" :checked="issue.solved" :disabled="!can('edit laptop') || issueToggling === issue.id"
-                                    class="mt-0.5 h-3.5 w-3.5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
-                                    @change="toggleIssue(issue)" />
-                                <div class="min-w-0 flex-1">
-                                    <p :class="issue.solved ? 'text-gray-500 line-through dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'">{{ issue.text }}</p>
-                                    <p v-if="issue.solved" class="mt-0.5 text-[10px] text-emerald-600 dark:text-emerald-400">
-                                        ✓ Selesai {{ formatDateTime(issue.solved_at) }}
-                                    </p>
-                                </div>
-                            </label>
-                        </div>
-                        <p v-else class="text-xs text-gray-400 dark:text-gray-600">Tidak ada kendala.</p>
-                    </div>
-
-                    <AppModal :show="showIssueModal" title="Tambah Kendala" size="sm" @close="showIssueModal = false">
-                        <form class="space-y-3" @submit.prevent="submitIssue">
-                            <div>
-                                <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">Nama kendala</label>
-                                <input v-model="issueText" type="text" maxlength="255" autofocus
-                                    placeholder="Contoh: Keyboard rusak"
-                                    class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white" />
-                            </div>
-                            <div class="flex gap-3 pt-1">
-                                <AppButton variant="secondary" class="flex-1" @click="showIssueModal = false">Batal</AppButton>
-                                <AppButton type="submit" class="flex-1" :disabled="!issueText.trim()" :loading="issueProcessing">Simpan</AppButton>
-                            </div>
-                        </form>
-                    </AppModal>
-                </div>
-
             </div>
+
+            <AppModal :show="showLogModal" title="Tambah Log Aktivitas" size="md" @close="showLogModal = false">
+                <ItemLogForm
+                    :specification="item.specification"
+                    :users="users"
+                    :statuses="LAPTOP_STATUSES"
+                    :processing="logProcessing"
+                    @submit="submitLog"
+                    @cancel="showLogModal = false" />
+            </AppModal>
+
+            <LaptopFormModal
+                v-if="isLaptop"
+                ref="editModalRef"
+                :show="showEditModal"
+                :item="item"
+                :brands="brands"
+                :suppliers="suppliers"
+                @close="showEditModal = false"
+                @submit="handleEditSubmit"
+            />
+
+            <AppModal :show="showIssueModal" title="Tambah Kendala" size="sm" @close="showIssueModal = false">
+                <form class="space-y-3" @submit.prevent="submitIssue">
+                    <div>
+                        <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">Nama kendala</label>
+                        <input v-model="issueText" type="text" maxlength="255" autofocus
+                            placeholder="Contoh: Keyboard rusak"
+                            class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white" />
+                    </div>
+                    <div class="flex gap-3 pt-1">
+                        <AppButton variant="secondary" class="flex-1" @click="showIssueModal = false">Batal</AppButton>
+                        <AppButton type="submit" class="flex-1" :disabled="!issueText.trim()" :loading="issueProcessing">Simpan</AppButton>
+                    </div>
+                </form>
+            </AppModal>
         </div>
     </AppLayout>
 </template>

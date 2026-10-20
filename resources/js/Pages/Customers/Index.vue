@@ -2,7 +2,7 @@
 import { usePermission } from '@/composables/usePermission';
 import { ref, computed, reactive, watch } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Plus, Search, Pencil, Trash2, Phone, UserCheck, X, MessageCircle } from 'lucide-vue-next';
+import { Plus, Search, Pencil, Trash2, Phone, UserCheck, X, MessageCircle, Eye } from 'lucide-vue-next';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import AppPageHeader from '@/Components/UI/AppPageHeader.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
@@ -11,6 +11,7 @@ import AppBadge from '@/Components/UI/AppBadge.vue';
 import AppTable from '@/Components/UI/AppTable.vue';
 import AppDropdown from '@/Components/UI/AppDropdown.vue';
 import AppFilterModal from '@/Components/UI/AppFilterModal.vue';
+import AppActionDrawer from '@/Components/UI/AppActionDrawer.vue';
 import CustomerFormModal from '@/Components/Customers/CustomerFormModal.vue';
 import { useToast } from '@/composables/useToast';
 import { useConfirm } from '@/composables/useConfirm';
@@ -106,6 +107,78 @@ const handleDelete = async (item) => {
     });
     if (!ok) return;
     router.delete(route('customers.destroy', item.id), { preserveScroll: true });
+};
+
+// Mobile action drawer
+const showActionDrawer = ref(false);
+const actionDrawerItem = ref(null);
+
+const openActionDrawer = (item) => {
+    actionDrawerItem.value = item;
+    showActionDrawer.value = true;
+};
+
+const closeActionDrawer = () => {
+    showActionDrawer.value = false;
+    actionDrawerItem.value = null;
+};
+
+const getDrawerActions = (item) => {
+    const actions = [];
+
+    // Lihat Detail
+    actions.push({
+        label: 'Lihat Detail',
+        icon: Eye,
+        onClick: () => {
+            closeActionDrawer();
+            router.visit(route('customers.show', item.id));
+        },
+    });
+
+    // Chat WhatsApp
+    if (waLink(item.phone)) {
+        actions.push({
+            label: 'Chat WhatsApp',
+            icon: MessageCircle,
+            onClick: () => {
+                closeActionDrawer();
+                window.open(waLink(item.phone), '_blank');
+            },
+        });
+    }
+
+    // Divider
+    actions.push({ divider: true });
+
+    // Edit
+    if (can('edit customer')) {
+        actions.push({
+            label: 'Edit',
+            icon: Pencil,
+            onClick: () => {
+                closeActionDrawer();
+                openEdit(item);
+            },
+        });
+    }
+
+    // Divider before delete
+    if (can('delete customer')) {
+        actions.push({ divider: true });
+
+        actions.push({
+            label: 'Hapus',
+            icon: Trash2,
+            class: 'text-red-600 dark:text-red-400',
+            onClick: () => {
+                closeActionDrawer();
+                handleDelete(item);
+            },
+        });
+    }
+
+    return actions;
 };
 </script>
 
@@ -229,30 +302,22 @@ const handleDelete = async (item) => {
                     <p class="text-sm text-gray-500 dark:text-gray-400">Tidak ada customer ditemukan.</p>
                 </div>
 
-                <Link
+                <div
                     v-for="item in rows"
                     :key="item.id"
-                    :href="route('customers.show', item.id)"
-                    class="flex items-center justify-between gap-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3.5 py-2.5 shadow-sm"
+                    class="flex items-center justify-between gap-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3.5 py-2.5 shadow-sm cursor-pointer active:bg-gray-50 dark:active:bg-gray-800/50"
+                    @click="openActionDrawer(item)"
                 >
                     <div class="min-w-0">
                         <p class="truncate text-sm font-medium text-gray-900 dark:text-white">{{ item.name }}</p>
                         <p class="truncate text-xs text-gray-500 dark:text-gray-400">{{ item.phone }}</p>
                     </div>
                     <div class="flex shrink-0 items-center gap-2">
-                        <a v-if="waLink(item.phone)"
-                            :href="waLink(item.phone)"
-                            target="_blank" rel="noopener"
-                            title="Chat WhatsApp"
-                            class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-green-600 transition-colors hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-500/10"
-                            @click.stop>
-                            <MessageCircle class="h-4 w-4" />
-                        </a>
                         <AppBadge :color="item.is_member ? 'purple' : 'gray'" size="sm">
                             {{ item.is_member ? 'Member' : 'Non-member' }}
                         </AppBadge>
                     </div>
-                </Link>
+                </div>
             </div>
 
             <div v-if="customers.total > 0" class="mt-4 sm:hidden">
@@ -268,5 +333,14 @@ const handleDelete = async (item) => {
         :item="selectedItem"
         @close="closeModal"
         @submit="handleSubmit"
+    />
+
+    <!-- Mobile Action Drawer -->
+    <AppActionDrawer
+        :show="showActionDrawer"
+        :title="actionDrawerItem ? actionDrawerItem.name : 'Aksi'"
+        :item="actionDrawerItem"
+        :actions="actionDrawerItem ? getDrawerActions(actionDrawerItem) : []"
+        @close="closeActionDrawer"
     />
 </template>

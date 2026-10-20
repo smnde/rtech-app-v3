@@ -18,7 +18,7 @@ class PurchasesResource extends JsonResource
             'id' => $this->id,
             'invoice' => $this->invoice,
             'show_url' => route('transaksi.pembelian.show', $this->resource),
-            'date' => $this->created_at->toDateString(),
+            'date' => $this->created_at->toDateTimeString(),
             'source_name' => $this->supplier?->name ?? $this->customer?->name,
             'total' => (float) $this->total,
             'payment_status' => $this->payment_status,

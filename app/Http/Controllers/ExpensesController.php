@@ -25,7 +25,7 @@ class ExpensesController extends Controller
         return Inertia::render('Expenses/Index', [
             'expenses' => $expenses->through(fn (Expense $expense) => [
                 'id' => $expense->id,
-                'date' => $expense->created_at->toDateString(),
+                'date' => $expense->created_at->toDateTimeString(),
                 'category' => $expense->category,
                 'description' => $expense->description,
                 'amount' => (float) $expense->amount,

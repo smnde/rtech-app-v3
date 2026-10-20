@@ -44,6 +44,10 @@ const applyPeriod = () => {
 
 const formatRupiah = (v) => `Rp ${Number(v).toLocaleString('id-ID')}`;
 
+const formatDateTime = (value) => (value
+    ? new Date(String(value).replace(' ', 'T')).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '—');
+
 const exportToPdf = async () => {
     // jsPDF besar (~400 KB): muat saat tombol ditekan, bukan di awal halaman.
     const { jsPDF } = await import('jspdf');
@@ -144,7 +148,7 @@ watch(() => props.filters, (value) => {
             </AppCard>
         </div>
 
-        <AppTable :is-empty="rows.length === 0" class="flex-1 min-h-0">
+        <AppTable :is-empty="rows.length === 0" class="hidden sm:flex flex-1 min-h-0">
             <thead>
                 <tr class="bg-gray-50 dark:bg-gray-800/60">
                     <th
@@ -168,12 +172,47 @@ watch(() => props.filters, (value) => {
                         class="px-5 py-3 text-sm text-gray-700 dark:text-gray-300"
                     >
                         <slot :name="`cell-${col.key}`" :row="row" :value="row[col.key]">
-                            {{ row[col.key] }}
+                            {{ col.key === 'date' ? formatDateTime(row[col.key]) : row[col.key] }}
                         </slot>
                     </td>
                 </tr>
             </tbody>
         </AppTable>
+
+        <!-- MOBILE: card list -->
+        <div v-if="rows.length === 0" class="sm:hidden flex flex-col items-center py-12 text-center">
+            <p class="text-sm text-gray-500 dark:text-gray-400">Belum ada data.</p>
+        </div>
+
+        <div v-else class="scrollbar-styled scrollbar-mobile-hidden sm:hidden flex-1 min-h-0 overflow-y-auto space-y-2 -mx-4 px-4">
+            <div
+                v-for="(row, i) in rows"
+                :key="i"
+                class="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-3"
+            >
+                <div class="mb-1.5 flex items-center justify-between gap-2">
+                    <div class="min-w-0 text-sm font-semibold text-gray-900 dark:text-white truncate">
+                        <slot :name="`cell-${columns[0].key}`" :row="row" :value="row[columns[0].key]">
+                            {{ row[columns[0].key] }}
+                        </slot>
+                    </div>
+                </div>
+                <dl class="space-y-1">
+                    <div
+                        v-for="col in columns.slice(1)"
+                        :key="col.key"
+                        class="flex items-center justify-between gap-2 text-xs"
+                    >
+                        <dt class="shrink-0 text-gray-500 dark:text-gray-400">{{ col.label }}</dt>
+                        <dd class="min-w-0 truncate text-right font-medium text-gray-900 dark:text-white">
+                            <slot :name="`cell-${col.key}`" :row="row" :value="row[col.key]">
+                                {{ col.key === 'date' ? formatDateTime(row[col.key]) : row[col.key] }}
+                            </slot>
+                        </dd>
+                    </div>
+                </dl>
+            </div>
+        </div>
         </div>
     </AppLayout>
 </template>

@@ -1,13 +1,14 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
 import { Head, router, usePage } from '@inertiajs/vue3';
-import { Plus, Search, Pencil, Trash2, Shield } from 'lucide-vue-next';
+import { Plus, Search, Pencil, Trash2, Shield, Eye } from 'lucide-vue-next';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import AppPageHeader from '@/Components/UI/AppPageHeader.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
 import AppPagination from '@/Components/UI/AppPagination.vue';
 import AppBadge from '@/Components/UI/AppBadge.vue';
 import AppTable from '@/Components/UI/AppTable.vue';
+import AppActionDrawer from '@/Components/UI/AppActionDrawer.vue';
 import UserFormModal from '@/Components/Users/UserFormModal.vue';
 import { useToast } from '@/composables/useToast';
 import { useConfirm } from '@/composables/useConfirm';
@@ -91,6 +92,66 @@ const roleLabel = { OWNER: 'Owner', SYSADMIN: 'Sysadmin', ADMIN: 'Admin', TECH: 
 
 const getInitials = (name) =>
     name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
+
+// Mobile action drawer
+const showActionDrawer = ref(false);
+const actionDrawerItem = ref(null);
+
+const openActionDrawer = (user) => {
+    actionDrawerItem.value = user;
+    showActionDrawer.value = true;
+};
+
+const closeActionDrawer = () => {
+    showActionDrawer.value = false;
+    actionDrawerItem.value = null;
+};
+
+const getDrawerActions = (user) => {
+    const actions = [];
+
+    // Lihat Detail
+    actions.push({
+        label: 'Lihat Detail',
+        icon: Eye,
+        onClick: () => {
+            closeActionDrawer();
+            router.visit(route('users.show', user.id));
+        },
+    });
+
+    // Divider
+    actions.push({ divider: true });
+
+    // Edit
+    if (user.can_edit) {
+        actions.push({
+            label: 'Edit',
+            icon: Pencil,
+            onClick: () => {
+                closeActionDrawer();
+                openEdit(user);
+            },
+        });
+    }
+
+    // Divider before delete
+    if (user.can_delete) {
+        actions.push({ divider: true });
+
+        actions.push({
+            label: 'Hapus',
+            icon: Trash2,
+            class: 'text-red-600 dark:text-red-400',
+            onClick: () => {
+                closeActionDrawer();
+                handleDelete(user);
+            },
+        });
+    }
+
+    return actions;
+};
 
 const columns = [
     { key: 'name',       label: 'Nama' },
@@ -204,7 +265,8 @@ const columns = [
                 <div
                     v-for="user in rows"
                     :key="user.id"
-                    class="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 shadow-sm"
+                    class="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 shadow-sm cursor-pointer active:bg-gray-50 dark:active:bg-gray-800/50"
+                    @click="openActionDrawer(user)"
                 >
                     <div class="flex items-center gap-3">
                         <!-- Avatar -->
@@ -224,19 +286,9 @@ const columns = [
                         </AppBadge>
                     </div>
 
-                    <!-- Footer card: tanggal + aksi -->
-                    <div class="mt-3 flex items-center justify-between pt-3 border-t border-gray-100 dark:border-gray-800">
+                    <!-- Footer card: tanggal -->
+                    <div class="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
                         <span class="text-xs text-gray-400">Dibuat {{ user.created_at }}</span>
-                        <div v-if="user.can_edit" class="flex items-center gap-1">
-                            <AppButton variant="ghost" size="sm" icon-only @click="openEdit(user)">
-                                <Pencil class="h-4 w-4" />
-                            </AppButton>
-                            <AppButton v-if="user.can_delete" variant="ghost" size="sm" icon-only
-                                class="hover:!text-red-500 dark:hover:!text-red-400"
-                                @click="handleDelete(user)">
-                                <Trash2 class="h-4 w-4" />
-                            </AppButton>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -256,5 +308,14 @@ const columns = [
         :roles="roles"
         @close="closeModal"
         @submit="handleSubmit"
+    />
+
+    <!-- Mobile Action Drawer -->
+    <AppActionDrawer
+        :show="showActionDrawer"
+        :title="actionDrawerItem ? actionDrawerItem.name : 'Aksi'"
+        :item="actionDrawerItem"
+        :actions="actionDrawerItem ? getDrawerActions(actionDrawerItem) : []"
+        @close="closeActionDrawer"
     />
 </template>

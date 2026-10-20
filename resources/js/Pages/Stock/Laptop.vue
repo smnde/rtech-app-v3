@@ -2,7 +2,7 @@
 import { usePermission } from '@/composables/usePermission';
 import { ref, computed, watch } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Plus, Search, Pencil, Trash2, Laptop, X, Printer } from 'lucide-vue-next';
+import { Plus, Search, Pencil, Trash2, Laptop, X, Printer, Eye } from 'lucide-vue-next';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import AppPageHeader from '@/Components/UI/AppPageHeader.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
@@ -11,6 +11,7 @@ import AppBadge from '@/Components/UI/AppBadge.vue';
 import AppTable from '@/Components/UI/AppTable.vue';
 import AppSelect from '@/Components/UI/AppSelect.vue';
 import AppDropdown from '@/Components/UI/AppDropdown.vue';
+import AppActionDrawer from '@/Components/UI/AppActionDrawer.vue';
 import LaptopFormModal from '@/Components/Laptops/LaptopFormModal.vue';
 import { useToast } from '@/composables/useToast';
 import { useStockFilter } from '@/composables/useStockFilter';
@@ -105,6 +106,76 @@ const statusColors = {
     'PENDING':   'yellow',
     'KENDALA':   'red',
     'HABIS':     'gray',
+};
+
+// Mobile action drawer
+const showActionDrawer = ref(false);
+const actionDrawerItem = ref(null);
+
+const openActionDrawer = (item) => {
+    actionDrawerItem.value = item;
+    showActionDrawer.value = true;
+};
+
+const closeActionDrawer = () => {
+    showActionDrawer.value = false;
+    actionDrawerItem.value = null;
+};
+
+const getDrawerActions = (item) => {
+    const actions = [];
+
+    // Lihat Detail
+    actions.push({
+        label: 'Lihat Detail',
+        icon: Eye,
+        onClick: () => {
+            closeActionDrawer();
+            router.visit(route('stock.laptop.show', item.id));
+        },
+    });
+
+    // Print Price Tag
+    actions.push({
+        label: 'Print Price Tag',
+        icon: Printer,
+        onClick: () => {
+            closeActionDrawer();
+            printPriceTag(item);
+        },
+    });
+
+    // Divider
+    actions.push({ divider: true });
+
+    // Edit
+    if (can('edit laptop')) {
+        actions.push({
+            label: 'Edit',
+            icon: Pencil,
+            onClick: () => {
+                closeActionDrawer();
+                openEdit(item);
+            },
+        });
+    }
+
+    // Divider before delete
+    if (can('delete laptop')) {
+        actions.push({ divider: true });
+
+        actions.push({
+            label: 'Hapus',
+            icon: Trash2,
+            class: 'text-red-600 dark:text-red-400',
+            onClick: () => {
+                closeActionDrawer();
+                handleDelete(item);
+            },
+        });
+    }
+
+    return actions;
 };
 </script>
 
@@ -245,21 +316,28 @@ const statusColors = {
                     <p class="text-sm text-gray-500 dark:text-gray-400">Tidak ada laptop ditemukan.</p>
                 </div>
 
-                <Link
+                <div
                     v-for="item in rows"
                     :key="item.id"
-                    :href="route('stock.laptop.show', item.id)"
-                    class="flex items-center justify-between gap-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3.5 py-2.5 shadow-sm"
+                    class="flex items-start justify-between gap-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3.5 py-3 shadow-sm cursor-pointer active:bg-gray-50 dark:active:bg-gray-800/50"
+                    @click="openActionDrawer(item)"
                 >
-                    <div class="min-w-0">
+                    <div class="min-w-0 flex-1">
                         <p class="truncate text-sm font-medium text-gray-900 dark:text-white">{{ item.name }}</p>
-                        <p class="truncate text-xs text-gray-500 dark:text-gray-400">{{ item.brand_name ?? '—' }} · {{ item.sku }}</p>
+                        <p class="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">{{ item.brand_name ?? '—' }} · {{ item.sku }}</p>
+                        <div class="mt-2 flex flex-wrap items-center gap-1.5">
+                            <span v-if="item.code" class="inline-flex items-center rounded-full bg-orange-100 dark:bg-orange-500/10 px-2 py-0.5 font-mono text-[10px] font-medium text-orange-700 dark:text-orange-400">{{ item.code }}</span>
+                            <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                                :class="Number(item.stock ?? 0) > 0 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400'">
+                                Stok {{ item.stock ?? 0 }}
+                            </span>
+                            <AppBadge :color="statusColors[item.status] ?? 'gray'" size="sm">{{ item.status }}</AppBadge>
+                        </div>
                     </div>
                     <div class="shrink-0 text-right">
-                        <p class="text-xs font-medium text-gray-900 dark:text-white">{{ formatRupiah(item.sell_price) }}</p>
-                        <AppBadge :color="statusColors[item.status] ?? 'gray'" size="sm">{{ item.status }}</AppBadge>
+                        <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ formatRupiah(item.sell_price) }}</p>
                     </div>
-                </Link>
+                </div>
             </div>
 
             <div v-if="laptops.total > 0" class="mt-4 sm:hidden">
@@ -277,5 +355,14 @@ const statusColors = {
         :suppliers="suppliers"
         @close="closeModal"
         @submit="handleSubmit"
+    />
+
+    <!-- Mobile Action Drawer -->
+    <AppActionDrawer
+        :show="showActionDrawer"
+        :title="actionDrawerItem ? actionDrawerItem.name : 'Aksi'"
+        :item="actionDrawerItem"
+        :actions="actionDrawerItem ? getDrawerActions(actionDrawerItem) : []"
+        @close="closeActionDrawer"
     />
 </template>

@@ -1,7 +1,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
 import { Head, router, usePage } from '@inertiajs/vue3';
-import { Plus, Search, X, Pencil, Trash2 } from 'lucide-vue-next';
+import { Plus, Search, X, Pencil, Trash2, Eye, Layers } from 'lucide-vue-next';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import AppPageHeader from '@/Components/UI/AppPageHeader.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
@@ -10,6 +10,7 @@ import AppBadge from '@/Components/UI/AppBadge.vue';
 import AppCard from '@/Components/UI/AppCard.vue';
 import AppTable from '@/Components/UI/AppTable.vue';
 import AppModal from '@/Components/UI/AppModal.vue';
+import AppActionDrawer from '@/Components/UI/AppActionDrawer.vue';
 import AppDateRangePicker from '@/Components/UI/AppDateRangePicker.vue';
 import AppDatePicker from '@/Components/UI/AppDatePicker.vue';
 import AppDropdown from '@/Components/UI/AppDropdown.vue';
@@ -229,6 +230,66 @@ const inputClass = (hasError) => [
     'w-full rounded-lg border px-3.5 py-2.5 text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 transition',
     hasError ? 'border-red-400 dark:border-red-500 focus:ring-red-400' : 'border-gray-300 dark:border-gray-700 focus:ring-primary-500',
 ];
+
+// Mobile action drawer
+const showActionDrawer = ref(false);
+const actionDrawerItem = ref(null);
+
+const openActionDrawer = (movement) => {
+    actionDrawerItem.value = movement;
+    showActionDrawer.value = true;
+};
+
+const closeActionDrawer = () => {
+    showActionDrawer.value = false;
+    actionDrawerItem.value = null;
+};
+
+const getDrawerActions = (movement) => {
+    const actions = [];
+
+    // Lihat Detail
+    actions.push({
+        label: 'Lihat Detail',
+        icon: Eye,
+        onClick: () => {
+            closeActionDrawer();
+            router.visit(route('stock-movements.show', movement.id));
+        },
+    });
+
+    // Divider
+    actions.push({ divider: true });
+
+    // Edit
+    if (can('edit stock_movement')) {
+        actions.push({
+            label: 'Edit',
+            icon: Pencil,
+            onClick: () => {
+                closeActionDrawer();
+                openEdit(movement);
+            },
+        });
+    }
+
+    // Divider before delete
+    if (can('delete stock_movement')) {
+        actions.push({ divider: true });
+
+        actions.push({
+            label: 'Hapus',
+            icon: Trash2,
+            class: 'text-red-600 dark:text-red-400',
+            onClick: () => {
+                closeActionDrawer();
+                handleDelete(movement);
+            },
+        });
+    }
+
+    return actions;
+};
 </script>
 
 <template>
@@ -275,7 +336,7 @@ const inputClass = (hasError) => [
             </div>
         </AppCard>
 
-        <AppTable :is-empty="rows.length === 0" empty-message="Belum ada mutasi stok.">
+        <AppTable :is-empty="rows.length === 0" empty-message="Belum ada mutasi stok." class="hidden sm:flex flex-1 min-h-0">
             <thead>
                 <tr class="bg-gray-50 dark:bg-gray-800/60">
                     <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Tanggal</th>
@@ -320,6 +381,43 @@ const inputClass = (hasError) => [
             </template>
 
         </AppTable>
+
+        <!-- MOBILE: card list with action drawer -->
+        <div class="scrollbar-styled sm:hidden flex-1 min-h-0 overflow-y-auto space-y-2 -mx-4 px-4">
+            <div v-if="rows.length === 0" class="flex flex-col items-center py-12 text-center">
+                <div class="mb-3 rounded-full bg-gray-100 dark:bg-gray-800 p-4">
+                    <Layers class="h-6 w-6 text-gray-400" />
+                </div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Belum ada mutasi stok.</p>
+            </div>
+
+            <div
+                v-for="item in rows"
+                :key="item.id"
+                class="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-3 cursor-pointer transition-colors active:bg-gray-50 dark:active:bg-gray-800/50"
+                @click="openActionDrawer(item)"
+            >
+                <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0">
+                        <p class="text-sm font-semibold text-gray-900 dark:text-white truncate">{{ item.item_name }}</p>
+                        <p class="text-xs text-gray-400">{{ item.date }}</p>
+                    </div>
+                    <div class="flex items-center gap-1.5 shrink-0">
+                        <AppBadge :color="TYPE_COLOR[item.type] ?? 'gray'" size="sm" dot>{{ TYPE_LABEL[item.type] ?? item.type }}</AppBadge>
+                        <span v-if="item.type !== 'adjustment'" class="text-xs text-gray-500">{{ STATUS_LABEL[item.status] ?? item.status }}</span>
+                    </div>
+                </div>
+                <div class="mt-1 flex items-center justify-between gap-2 text-xs">
+                    <span class="text-gray-500 dark:text-gray-400">{{ item.quantity }} pcs</span>
+                    <span class="shrink-0 text-gray-400 tabular-nums">{{ item.stock_before }} → {{ item.stock_after }}</span>
+                    <span v-if="item.reference" class="shrink-0 text-gray-400 truncate max-w-[120px]">{{ item.reference }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="movements.total > 0" class="mt-4 sm:hidden">
+            <AppPagination :paginator="movements" />
+        </div>
 
         <AppModal :show="showModal" title="Catat Mutasi Stok" size="md" @close="closeModal">
             <form class="space-y-4" novalidate @submit.prevent="submit">
@@ -447,5 +545,13 @@ const inputClass = (hasError) => [
                 <AppButton variant="primary" size="sm" :loading="editSaving" @click="submitEdit">Simpan</AppButton>
             </template>
         </AppModal>
+
+        <AppActionDrawer
+            :show="showActionDrawer"
+            :title="actionDrawerItem ? actionDrawerItem.item_name : 'Aksi'"
+            :item="actionDrawerItem"
+            :actions="actionDrawerItem ? getDrawerActions(actionDrawerItem) : []"
+            @close="closeActionDrawer"
+        />
     </AppLayout>
 </template>

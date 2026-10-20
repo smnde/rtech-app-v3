@@ -2,7 +2,7 @@
 import { usePermission } from '@/composables/usePermission';
 import { ref, computed, watch } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Plus, Search, Pencil, Trash2, Cpu, X } from 'lucide-vue-next';
+import { Plus, Search, Pencil, Trash2, Cpu, X, Eye } from 'lucide-vue-next';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import AppPageHeader from '@/Components/UI/AppPageHeader.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
@@ -11,6 +11,7 @@ import AppBadge from '@/Components/UI/AppBadge.vue';
 import AppTable from '@/Components/UI/AppTable.vue';
 import AppSelect from '@/Components/UI/AppSelect.vue';
 import AppDropdown from '@/Components/UI/AppDropdown.vue';
+import AppActionDrawer from '@/Components/UI/AppActionDrawer.vue';
 import SparepartFormModal from '@/Components/Spareparts/SparepartFormModal.vue';
 import { useToast } from '@/composables/useToast';
 import { useStockFilter } from '@/composables/useStockFilter';
@@ -89,6 +90,66 @@ const handleDelete = async (item) => {
 
 const formatRupiah = (value) =>
     value == null || value === '' ? '—' : `Rp ${Number(value).toLocaleString('id-ID')}`;
+
+// Mobile action drawer
+const showActionDrawer = ref(false);
+const actionDrawerItem = ref(null);
+
+const openActionDrawer = (item) => {
+    actionDrawerItem.value = item;
+    showActionDrawer.value = true;
+};
+
+const closeActionDrawer = () => {
+    showActionDrawer.value = false;
+    actionDrawerItem.value = null;
+};
+
+const getDrawerActions = (item) => {
+    const actions = [];
+
+    // Lihat Detail
+    actions.push({
+        label: 'Lihat Detail',
+        icon: Eye,
+        onClick: () => {
+            closeActionDrawer();
+            router.visit(route('stock.sparepart.show', item.id));
+        },
+    });
+
+    // Divider
+    actions.push({ divider: true });
+
+    // Edit
+    if (can('edit sparepart')) {
+        actions.push({
+            label: 'Edit',
+            icon: Pencil,
+            onClick: () => {
+                closeActionDrawer();
+                openEdit(item);
+            },
+        });
+    }
+
+    // Divider before delete
+    if (can('delete sparepart')) {
+        actions.push({ divider: true });
+
+        actions.push({
+            label: 'Hapus',
+            icon: Trash2,
+            class: 'text-red-600 dark:text-red-400',
+            onClick: () => {
+                closeActionDrawer();
+                handleDelete(item);
+            },
+        });
+    }
+
+    return actions;
+};
 
 </script>
 
@@ -228,11 +289,11 @@ const formatRupiah = (value) =>
                     <p class="text-sm text-gray-500 dark:text-gray-400">Tidak ada sparepart ditemukan.</p>
                 </div>
 
-                <Link
+                <div
                     v-for="item in rows"
                     :key="item.id"
-                    :href="route('stock.sparepart.show', item.id)"
-                    class="flex items-center justify-between gap-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3.5 py-2.5 shadow-sm"
+                    class="flex items-center justify-between gap-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3.5 py-2.5 shadow-sm cursor-pointer active:bg-gray-50 dark:active:bg-gray-800/50"
+                    @click="openActionDrawer(item)"
                 >
                     <div class="min-w-0">
                         <p class="truncate text-sm font-medium text-gray-900 dark:text-white">{{ item.name }}</p>
@@ -242,7 +303,7 @@ const formatRupiah = (value) =>
                         <p class="text-xs font-medium text-gray-900 dark:text-white">{{ formatRupiah(item.sell_price) }}</p>
                         <p class="text-xs text-gray-500 dark:text-gray-400">Stok {{ item.stock }}</p>
                     </div>
-                </Link>
+                </div>
             </div>
 
             <div v-if="spareparts.total > 0" class="mt-4 sm:hidden">
@@ -261,5 +322,14 @@ const formatRupiah = (value) =>
         :suppliers="suppliers"
         @close="closeModal"
         @submit="handleSubmit"
+    />
+
+    <!-- Mobile Action Drawer -->
+    <AppActionDrawer
+        :show="showActionDrawer"
+        :title="actionDrawerItem ? actionDrawerItem.name : 'Aksi'"
+        :item="actionDrawerItem"
+        :actions="actionDrawerItem ? getDrawerActions(actionDrawerItem) : []"
+        @close="closeActionDrawer"
     />
 </template>
