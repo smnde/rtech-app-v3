@@ -63,11 +63,14 @@ const flagOptions = [
 ];
 
 const deadlineFor = (item) => {
-    const isCheck = ['RECEIVED', 'CHECKED'].includes(item.status);
-    const value = isCheck
-        ? (item.check_deadline_at ?? item.process_deadline_at)
-        : (item.process_deadline_at ?? item.check_deadline_at);
-    return { label: isCheck ? 'Deadline cek' : 'Deadline proses', value };
+    // Status akhir tidak punya deadline tampil.
+    if (['DONE', 'TAKEN', 'CANCEL'].includes(item.status)) {
+        return { label: 'Deadline', value: null };
+    }
+
+    // Utamakan deadline proses; fallback deadline cek.
+    const value = item.process_deadline_at ?? item.check_deadline_at;
+    return { label: item.process_deadline_at ? 'Deadline proses' : 'Deadline cek', value };
 };
 
 const formatDeadline = (value) => {
@@ -428,9 +431,10 @@ const getDrawerActions = (item) => {
                             </div>
                         </td>
                         <td class="px-5 py-3">
-                            <AppBadge :color="deadlineColor(deadlineFor(item).value)" size="sm">
+                            <AppBadge v-if="deadlineFor(item).value" :color="deadlineColor(deadlineFor(item).value)" size="sm">
                                 {{ formatDeadline(deadlineFor(item).value) }}
                             </AppBadge>
+                            <span v-else class="text-sm text-gray-400">—</span>
                         </td>
                         <td class="px-5 py-3">
                             <AppBadge :color="STATUS_COLOR[item.status] ?? 'gray'" size="sm">{{ item.status }}</AppBadge>

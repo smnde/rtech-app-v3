@@ -38,7 +38,7 @@ class ReparationsController extends Controller
             }))
             ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
             ->when($request->filled('flag'), fn ($query) => $query->whereJsonContains('flag', $request->string('flag')->toString()))
-            ->when($request->filled('status') === false, fn ($query) => $query->whereNotIn('status', ['DONE', 'CANCEL']))
+            ->when($request->filled('status') === false, fn ($query) => $query->whereNotIn('status', ['DONE', 'TAKEN', 'CANCEL']))
             ->when($from, fn ($query) => $query->where('created_at', '>=', "{$from} 00:00:00"))
             ->when($to, fn ($query) => $query->where('created_at', '<=', "{$to} 23:59:59"))
             ->orderByRaw($this->activeDeadlineColumn().' IS NULL')
@@ -62,11 +62,11 @@ class ReparationsController extends Controller
     }
 
     /**
-     * Deadline yang relevan: cek dulu saat belum diperiksa, lalu deadline proses setelahnya.
+     * Deadline yang relevan: utamakan deadline proses, fallback ke deadline cek.
      */
     private function activeDeadlineColumn(): string
     {
-        return "COALESCE(CASE WHEN status IN ('RECEIVED', 'CHECKED') THEN check_deadline_at END, process_deadline_at)";
+        return 'COALESCE(process_deadline_at, check_deadline_at)';
     }
 
     public function store(StoreReparationRequest $request, ReparationTracker $tracker): RedirectResponse

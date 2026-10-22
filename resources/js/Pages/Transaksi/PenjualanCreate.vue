@@ -260,6 +260,7 @@ const handleSave = () => {
     if (!validate()) return;
 
     router.post(route('transaksi.penjualan.store'), {
+        date: form.value.date,
         customer_id: props.cart.customer_id ?? null,
         payment_status: form.value.status,
         payment_method: form.value.payment,

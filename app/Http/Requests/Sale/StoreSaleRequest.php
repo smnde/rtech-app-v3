@@ -20,6 +20,7 @@ class StoreSaleRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'date' => ['nullable', 'date'],
             'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
             'payment_status' => ['required', Rule::in(['lunas', 'hutang', 'keep'])],
             'payment_method' => ['required', Rule::in(['cash', 'tf'])],

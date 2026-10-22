@@ -17,6 +17,7 @@ use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Inertia\Response;
@@ -105,6 +106,7 @@ class SalesController extends Controller
                     'accessories' => $detail->item?->accessories ?: [],
                     'features' => $detail->item?->features ?: [],
                     'serial_number' => $detail->item?->serialnumber,
+                    'warranty' => $detail->item?->warranty,
                 ])->values(),
             ],
         ]);
@@ -197,6 +199,10 @@ class SalesController extends Controller
             $discount = $lineDiscountTotal + $headerDiscount;
             $total = max(0, $subtotal - $discount);
 
+            $trxAt = filled($data['date'] ?? null)
+                ? Carbon::parse($data['date'])->setTimeFrom(now())
+                : null;
+
             $sale = Sale::create([
                 'customer_id' => $data['customer_id'] ?? null,
                 'user_id' => $request->user()->id,
@@ -210,6 +216,11 @@ class SalesController extends Controller
                 'paid_at' => $data['payment_status'] === 'keep' ? $data['paid_at'] : null,
                 'notes' => $data['notes'] ?? null,
             ]);
+
+            if ($trxAt) {
+                // Tanggal transaksi ikut pilihan user; jam tetap jam input.
+                $sale->forceFill(['created_at' => $trxAt])->saveQuietly();
+            }
 
             foreach ($lines as $line) {
                 SalesDetail::create([
@@ -226,7 +237,7 @@ class SalesController extends Controller
                     $stockItem->decrement('stock', $qty);
 
                     $status = $isBonus ? 'BONUS' : ($isDebt ? 'HUTANG' : 'TERJUAL');
-                    StockMovementRecorder::record($stockItem, 'out', $qty, $stockBefore, $status, $request->user(), $sale->invoice);
+                    StockMovementRecorder::record($stockItem, 'out', $qty, $stockBefore, $status, $request->user(), $sale->invoice, $trxAt?->toDateTimeString());
                 }
             }
 
@@ -240,6 +251,7 @@ class SalesController extends Controller
                     $sale,
                     $request->user(),
                     $sale->invoice,
+                    $trxAt?->toDateString(),
                 );
             }
 

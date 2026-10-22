@@ -310,6 +310,12 @@ const getDrawerActions = (movement) => {
     <Head title="Mutasi Stok" />
 
     <AppLayout title="Mutasi Stok">
+        <template v-if="can('add stock_movement')" #fab>
+            <AppButton variant="primary" size="md" class="!h-14 !w-14 !rounded-full !p-0 shadow-lg" title="Catat Mutasi" @click="openCreate">
+                <Plus class="h-6 w-6" />
+            </AppButton>
+        </template>
+
         <AppPageHeader title="Mutasi Stok" description="Catatan stok masuk, keluar, dan penyesuaian." class="shrink-0">
             <template #actions>
                 <AppFilterModal :active="hasActiveFilter" @reset="resetFilter">

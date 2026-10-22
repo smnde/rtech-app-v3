@@ -20,6 +20,7 @@ use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Inertia\Response;
 
@@ -112,6 +113,7 @@ class PurchasesController extends Controller
                     'accessories' => $detail->item?->accessories ?: [],
                     'features' => $detail->item?->features ?: [],
                     'serial_number' => $detail->item?->serialnumber,
+                    'warranty' => $detail->item?->warranty,
                 ])->values(),
             ],
         ]);
@@ -174,6 +176,10 @@ class PurchasesController extends Controller
 
             $total = $subtotal;
 
+            $trxAt = filled($data['date'] ?? null)
+                ? Carbon::parse($data['date'])->setTimeFrom(now())
+                : null;
+
             $purchase = Purchase::create([
                 'supplier_id' => $data['supplier_id'] ?? null,
                 'customer_id' => $data['customer_id'] ?? null,
@@ -186,6 +192,11 @@ class PurchasesController extends Controller
                 'notes' => $data['notes'] ?? null,
             ]);
 
+            if ($trxAt) {
+                // Tanggal transaksi ikut pilihan user; jam tetap jam input.
+                $purchase->forceFill(['created_at' => $trxAt])->saveQuietly();
+            }
+
             foreach ($lines as $line) {
                 unset($line['stock_item']);
 
@@ -196,7 +207,7 @@ class PurchasesController extends Controller
             }
 
             if ($status === 'done') {
-                $this->applyStockIn($lines, $request->user(), $purchase->invoice);
+                $this->applyStockIn($lines, $request->user(), $purchase->invoice, $trxAt?->toDateTimeString());
             }
 
             if ($data['payment_status'] === 'lunas' && $total > 0) {
@@ -208,6 +219,7 @@ class PurchasesController extends Controller
                     $purchase,
                     $request->user(),
                     $purchase->invoice,
+                    $trxAt?->toDateString(),
                 );
             }
 
@@ -222,7 +234,7 @@ class PurchasesController extends Controller
     /**
      * @param  list<array{stock_item: Model, qty: int}>  $lines
      */
-    private function applyStockIn(array $lines, Authenticatable $user, string $reference): void
+    private function applyStockIn(array $lines, Authenticatable $user, string $reference, ?string $at = null): void
     {
         foreach ($lines as $line) {
             $stockItem = $line['stock_item'];
@@ -231,7 +243,7 @@ class PurchasesController extends Controller
             $stockBefore = $stockItem->stock;
             $stockItem->increment('stock', $qty);
 
-            StockMovementRecorder::record($stockItem, 'in', $qty, $stockBefore, 'PEMBELIAN', $user, $reference);
+            StockMovementRecorder::record($stockItem, 'in', $qty, $stockBefore, 'PEMBELIAN', $user, $reference, $at);
         }
     }
 

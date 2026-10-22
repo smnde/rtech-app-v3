@@ -185,6 +185,7 @@ const handleSave = () => {
     if (!validate()) return;
 
     router.post(route('transaksi.pembelian.store'), {
+        date: form.value.date,
         supplier_id: buyFromSupplier.value ? (selectedSupplier.value?.id ?? null) : null,
         customer_id: buyFromSupplier.value ? null : (props.cart.customer_id ?? null),
         buy_from_reference: form.value.buy_from_reference || null,

@@ -23,6 +23,7 @@ final class CashFlowRecorder
         ?Model $transaction,
         ?Authenticatable $user,
         ?string $reference = null,
+        ?string $flowDate = null,
     ): void {
         if ($amount <= 0) {
             return;
@@ -36,7 +37,7 @@ final class CashFlowRecorder
             'category' => $category,
             'description' => $description,
             'amount' => $amount,
-            'flow_date' => now()->toDateString(),
+            'flow_date' => $flowDate ?? now()->toDateString(),
             'reference' => $reference,
         ]);
     }

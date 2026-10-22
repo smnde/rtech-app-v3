@@ -44,19 +44,34 @@ function formatDate(d) {
     });
 }
 
-function formatSpec(spec) {
-    if (!spec || typeof spec !== 'object') return '';
-    return Object.entries(spec)
-        .filter(([, v]) => v !== null && v !== undefined && `${v}`.trim() !== '')
-        .map(([k, v]) => `${k.charAt(0).toUpperCase()}${k.slice(1)}: ${v}`)
+// Spek 2 baris tanpa label: (CPU + GPU) lalu (Memory + Storage + Display).
+function specLines(spec) {
+    if (!spec || typeof spec !== 'object') return [];
+
+    const value = (key) => {
+        const v = spec[key];
+
+        return v !== null && v !== undefined && `${v}`.trim() !== '' ? `${v}`.trim() : '';
+    };
+
+    const known = ['cpu', 'gpu', 'memory', 'storage', 'display'];
+    const extra = Object.entries(spec)
+        .filter(([key, v]) => !known.includes(key) && v !== null && v !== undefined && `${v}`.trim() !== '')
+        .map(([, v]) => `${v}`.trim())
         .join(' · ');
+
+    const line1 = ['cpu', 'gpu'].map(value).filter(Boolean).join(' · ');
+    const line2 = [...['memory', 'storage', 'display'].map(value), extra].filter(Boolean).join(' · ');
+
+    return [line1, line2].filter(Boolean);
 }
 
-// Fitur & aksesori untuk baris barang di nota (spec sudah tidak dicantumkan).
+// Spek, fitur, aksesori & garansi — masing-masing baris terpisah.
 function itemExtras(li) {
-    const extras = [];
-    if (Array.isArray(li.features) && li.features.length) extras.push(`Fitur: ${li.features.join(', ')}`);
-    if (Array.isArray(li.accessories) && li.accessories.length) extras.push(`Acc: ${li.accessories.join(', ')}`);
+    const extras = [...specLines(li.specification)];
+    if (Array.isArray(li.features) && li.features.length) extras.push(li.features.join(' · '));
+    if (Array.isArray(li.accessories) && li.accessories.length) extras.push(li.accessories.join(' · '));
+    if (li.warranty) extras.push(`Garansi: ${li.warranty}`);
     return extras;
 }
 
@@ -119,32 +134,44 @@ const sendWa = async () => {
                 </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-x-6 py-3 text-[9.5px]">
-                <div class="flex justify-between gap-4 border-b border-dotted border-slate-200 py-1">
-                    <span class="text-slate-500">Tanggal</span><span class="text-right font-medium">{{ formatDate(sale.created_at) }}</span>
+            <div class="grid grid-cols-2 items-start gap-x-6 py-3 text-[9.5px]">
+                <!-- Kiri: tanggal → kasir → pembayaran -->
+                <div>
+                    <div class="flex justify-between gap-4 border-b border-dotted border-slate-200 py-1">
+                        <span class="text-slate-500">Tanggal</span><span class="text-right font-medium">{{ formatDate(sale.created_at) }}</span>
+                    </div>
+                    <div v-if="sale.user?.name" class="flex justify-between gap-4 border-b border-dotted border-slate-200 py-1">
+                        <span class="text-slate-500">Kasir</span><span class="text-right font-medium">{{ sale.user.name }}</span>
+                    </div>
+                    <div v-if="sale.payment_method" class="flex justify-between gap-4 border-b border-dotted border-slate-200 py-1">
+                        <span class="text-slate-500">Pembayaran</span><span class="text-right font-medium">{{ sale.payment_method }}</span>
+                    </div>
+                    <div v-if="sale.buy_from_reference" class="flex justify-between gap-4 border-b border-dotted border-slate-200 py-1">
+                        <span class="text-slate-500">No. Nota Supplier</span><span class="text-right font-medium">{{ sale.buy_from_reference }}</span>
+                    </div>
+                    <div v-if="sale.paid_at" class="flex justify-between gap-4 border-b border-dotted border-slate-200 py-1">
+                        <span class="text-slate-500">Dibayar</span><span class="text-right font-medium">{{ formatDate(sale.paid_at) }}</span>
+                    </div>
+                    <div v-if="sale.dp_amount" class="flex justify-between gap-4 border-b border-dotted border-slate-200 py-1">
+                        <span class="text-slate-500">DP</span><span class="text-right font-medium">{{ money(sale.dp_amount) }}</span>
+                    </div>
                 </div>
-                <div v-if="sale.user?.name" class="flex justify-between gap-4 border-b border-dotted border-slate-200 py-1">
-                    <span class="text-slate-500">Kasir</span><span class="text-right font-medium">{{ sale.user.name }}</span>
-                </div>
-                <div class="flex justify-between gap-4 border-b border-dotted border-slate-200 py-1">
-                    <span class="text-slate-500">{{ partyLabel }}</span><span class="text-right font-medium">{{ partyName }}</span>
-                </div>
-                <div v-if="phone2" class="flex justify-between gap-4 border-b border-dotted border-slate-200 py-1">
-                    <span class="text-slate-500">Telepon</span><span class="text-right font-medium tabular-nums">{{ phone2 }}</span>
-                </div>
-                <div v-if="sale.payment_method" class="flex justify-between gap-4 border-b border-dotted border-slate-200 py-1">
-                    <span class="text-slate-500">Pembayaran</span><span class="text-right font-medium">{{ sale.payment_method }}</span>
-                </div>
-                <div v-if="sale.dp_amount" class="flex justify-between gap-4 border-b border-dotted border-slate-200 py-1">
-                    <span class="text-slate-500">DP</span><span class="text-right font-medium">{{ money(sale.dp_amount) }}</span>
+                <!-- Kanan: customer/supplier → telepon -->
+                <div>
+                    <div class="flex justify-between gap-4 border-b border-dotted border-slate-200 py-1">
+                        <span class="text-slate-500">{{ partyLabel }}</span><span class="text-right font-medium">{{ partyName }}</span>
+                    </div>
+                    <div v-if="phone2" class="flex justify-between gap-4 border-b border-dotted border-slate-200 py-1">
+                        <span class="text-slate-500">Telepon</span><span class="text-right font-medium tabular-nums">{{ phone2 }}</span>
+                    </div>
                 </div>
             </div>
 
             <table class="w-full border-collapse text-[9.5px]">
                 <thead>
                     <tr class="border-y border-slate-300 bg-slate-50 text-[8px] uppercase tracking-wide text-slate-500">
-                        <th class="w-6 px-1 py-1.5 text-left font-semibold">#</th>
-                        <th class="px-1 py-1.5 text-left font-semibold">Barang</th>
+                        <th class="w-5 px-1 py-1.5 text-left font-semibold">#</th>
+                        <th class="w-[42%] px-1 py-1.5 text-left font-semibold">Barang</th>
                         <th class="px-1 py-1.5 text-right font-semibold">Qty</th>
                         <th class="px-1 py-1.5 text-right font-semibold">Harga</th>
                         <th class="px-1 py-1.5 text-right font-semibold">Diskon</th>
@@ -156,10 +183,8 @@ const sendWa = async () => {
                         <td class="px-1 py-1.5 text-slate-400">{{ i + 1 }}</td>
                         <td class="px-1 py-1.5">
                             <p class="font-semibold text-slate-900">{{ li.item_name ?? li.name }}</p>
-<p class="text-[8px] text-slate-500">
-                                <span v-if="li.serial_number">SN: {{ li.serial_number }}</span>
-                                <span v-for="(x, xi) in itemExtras(li)" :key="xi"><span v-if="li.serial_number || xi > 0"> · </span>{{ x }}</span>
-                            </p>
+<p v-if="li.serial_number" class="text-[8px] text-slate-500">SN: {{ li.serial_number }}</p>
+                            <p v-for="(x, xi) in itemExtras(li)" :key="xi" class="text-[8px] text-slate-500">{{ x }}</p>
                         </td>
                         <td class="px-1 py-1.5 text-right tabular-nums">{{ li.quantity ?? li.qty }}</td>
                         <td class="px-1 py-1.5 text-right tabular-nums">{{ num(li.price ?? li.buy_price) }}</td>
@@ -186,10 +211,24 @@ const sendWa = async () => {
             <p class="mt-6 border-t border-dashed border-slate-300 pt-3 text-center text-[9px] text-slate-500">
                 {{ store.footer || 'Terima kasih' }}
             </p>
-            <p class="mt-2 text-center text-[7.5px] text-slate-400 leading-relaxed">
-                Garansi berlaku selama tidak ada indikasi Human Error / Kesalahan Pengguna.<br>
-                Tidak ada pengembalian barang / uang untuk barang yang sudah dibeli.
-            </p>
+            <ol class="mt-2 list-decimal space-y-0.5 pl-3.5 text-left text-[7.5px] leading-relaxed text-slate-400">
+                <li>
+                    Garansi toko berlaku untuk :
+                    <ul class="list-disc pl-3">
+                        <li>Hardware 60 Hari</li>
+                        <li>Software 1 Tahun</li>
+                    </ul>
+                </li>
+                <li>
+                    Garansi tukar unit jika tidak cocok, dengan syarat :
+                    <ul class="list-disc pl-3">
+                        <li>tidak lebih dari 4 hari setelah pembelian</li>
+                        <li>penukaran hanya bisa 1x</li>
+                    </ul>
+                </li>
+                <li>Garansi hangus jika terjadi human error / kesalahan pengguna.</li>
+                <li>Tidak ada pengembalian uang atau barang untuk barang yang sudah dibeli.</li>
+            </ol>
         </div>
 
         <template #footer>

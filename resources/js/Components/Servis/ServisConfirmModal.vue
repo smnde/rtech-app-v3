@@ -119,26 +119,31 @@ const textareaClass = 'w-full rounded-lg border border-gray-300 dark:border-gray
                     </button>
                 </div>
 
-                <div class="space-y-2.5">
+                <div class="space-y-3">
                     <div v-for="(item, i) in form.items" :key="i"
-                        class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 p-2 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 dark:sm:bg-transparent">
-                        <div class="flex items-center gap-2">
+                        class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 p-2.5 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 dark:sm:bg-transparent">
+                        <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
                             <input v-model="item.label" type="text" placeholder="Kendala / pekerjaan"
                                 class="min-w-0 flex-1 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                            <div class="grid grid-cols-2 gap-2 sm:flex sm:w-72 sm:shrink-0">
+                                <div class="min-w-0">
+                                    <AppCurrencyInput v-model="item.cost" placeholder="Biaya" />
+                                </div>
+                                <div class="min-w-0">
+                                    <AppDatePicker v-model="item.est_days" placeholder="Est. selesai" />
+                                </div>
+                            </div>
                             <button type="button" :disabled="form.items.length === 1"
-                                class="shrink-0 rounded-lg p-1.5 text-gray-400 hover:bg-gray-200 hover:text-red-500 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400"
+                                class="hidden shrink-0 rounded-lg p-1.5 text-gray-400 hover:bg-gray-200 hover:text-red-500 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400 sm:block"
                                 @click="removeItem(i)" aria-label="Hapus baris">
                                 <X class="h-4 w-4" />
                             </button>
                         </div>
-                        <div class="mt-2 grid grid-cols-2 gap-2 sm:mt-0 sm:contents">
-                            <div class="sm:w-36 sm:shrink-0">
-                                <AppCurrencyInput v-model="item.cost" placeholder="Biaya" />
-                            </div>
-                            <div class="sm:w-36 sm:shrink-0">
-                                <AppDatePicker v-model="item.est_days" placeholder="Est. selesai" />
-                            </div>
-                        </div>
+                        <button type="button" :disabled="form.items.length === 1"
+                            class="mt-1.5 inline-flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 disabled:opacity-30 sm:hidden"
+                            @click="removeItem(i)">
+                            <X class="h-3.5 w-3.5" /> Hapus
+                        </button>
                     </div>
                 </div>
             </div>

@@ -27,12 +27,27 @@ function formatDate(d) {
     });
 }
 
-function formatSpec(spec) {
-    if (!spec || typeof spec !== 'object') return '';
-    return Object.entries(spec)
-        .filter(([, v]) => v !== null && v !== undefined && `${v}`.trim() !== '')
-        .map(([k, v]) => `${k.charAt(0).toUpperCase()}${k.slice(1)}: ${v}`)
+// Spek jadi 2 baris tanpa label:
+//   1) CPU + GPU   2) Memory + Storage + Display (+ key lain).
+function specLines(spec) {
+    if (!spec || typeof spec !== 'object') return [];
+
+    const value = (key) => {
+        const v = spec[key];
+
+        return v !== null && v !== undefined && `${v}`.trim() !== '' ? `${v}`.trim() : '';
+    };
+
+    const known = ['cpu', 'gpu', 'memory', 'storage', 'display'];
+    const extra = Object.entries(spec)
+        .filter(([key, v]) => !known.includes(key) && v !== null && v !== undefined && `${v}`.trim() !== '')
+        .map(([, v]) => `${v}`.trim())
         .join(' · ');
+
+    const line1 = ['cpu', 'gpu'].map(value).filter(Boolean).join(' · ');
+    const line2 = [...['memory', 'storage', 'display'].map(value), extra].filter(Boolean).join(' · ');
+
+    return [line1, line2].filter(Boolean);
 }
 
 function pair(label, value) {
@@ -57,7 +72,7 @@ const PAPER_CSS = `
     .badge { display: inline-block; margin-top: 6px; padding: 2px 10px; border-radius: 999px; font-size: 9px; font-weight: 700; letter-spacing: .8px; }
     .badge-paid { background: #d1fae5; color: #065f46; }
     .badge-due { background: #fef3c7; color: #92400e; }
-    .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12mm; padding: 5mm 0 3mm; }
+    .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12mm; padding: 5mm 0 3mm; align-items: start; }
     .meta .pair { display: flex; justify-content: space-between; gap: 6mm; padding: 1.3mm 0; border-bottom: 1px dotted #e5e7eb; font-size: 10.5px; }
     .meta dt { color: #6b7280; flex-shrink: 0; }
     .meta dd { font-weight: 500; text-align: right; word-break: break-word; }
@@ -173,27 +188,42 @@ function drawHead(pdf, { store = {}, title = '', invoice = '', badge = null }) {
 }
 
 /** Dua kolom pasangan label–nilai (kembali ke bawah setelah isi kolom selesai). */
-function drawPairs(pdf, pairs, y) {
+/**
+ * Baris meta dua kolom.
+ * @param {Array<Array<[string, string]>>|Array<[string, string]>} columns
+ *   Array dua kolom (masing-masing array pair) → tiap kolom vertikal.
+ *   Array pair biasa → dibagi dua kolom berselang-seling (perilaku lama).
+ */
+function drawPairs(pdf, columns, y) {
     const gap = 8;
     const colW = (PDF.widthInner - gap) / 2;
+
+    const grouped = Array.isArray(columns?.[0]?.[0])
+        ? columns
+        : [columns.filter((_, i) => i % 2 === 0), columns.filter((_, i) => i % 2 === 1)];
+
     let maxY = y;
-    pairs.forEach((row, i) => {
-        if (!row) return;
-        const col = i % 2;
-        const lineIdx = Math.floor(i / 2);
+
+    grouped.forEach((pairs, col) => {
         const x = PDF.left + col * (colW + gap);
-        const ry = y + lineIdx * 5.2;
-        setFont(pdf, 7.5, 'normal', [107, 114, 128]);
-        pdf.text(row[0], x, ry);
-        setFont(pdf, 7.5, 'normal', [17, 24, 39]);
-        const value = pdf.splitTextToSize(String(row[1]), colW * 0.6)[0] ?? '';
-        pdf.text(value, x + colW, ry, { align: 'right' });
-        pdf.setDrawColor(229, 231, 235);
-        pdf.setLineWidth(0.2);
-        pdf.setLineDashPattern([0.6, 0.8], 0);
-        pdf.line(x, ry + 1.5, x + colW, ry + 1.5);
-        maxY = Math.max(maxY, ry + 3);
+        let ry = y;
+
+        pairs.forEach((row) => {
+            if (!row) return;
+            setFont(pdf, 7.5, 'normal', [107, 114, 128]);
+            pdf.text(row[0], x, ry);
+            setFont(pdf, 7.5, 'normal', [17, 24, 39]);
+            const value = pdf.splitTextToSize(String(row[1]), colW * 0.6)[0] ?? '';
+            pdf.text(value, x + colW, ry, { align: 'right' });
+            pdf.setDrawColor(229, 231, 235);
+            pdf.setLineWidth(0.2);
+            pdf.setLineDashPattern([0.6, 0.8], 0);
+            pdf.line(x, ry + 1.5, x + colW, ry + 1.5);
+            maxY = Math.max(maxY, ry + 3);
+            ry += 5.2;
+        });
     });
+
     return maxY + 1;
 }
 
@@ -225,7 +255,20 @@ function drawTable(pdf, { columns, rows, y, headerBg = [243, 244, 246] }) {
         const cells = columns.map((col) => {
             const raw = col.render ? col.render(row, i) : row[col.key];
             const w = col.width - rowPadX * 2;
-            const lines = col.wrap === false ? [String(raw ?? '')] : wrapText(pdf, raw, w);
+
+            // Sel bisa berupa string, atau array baris (tiap baris = baris baru).
+            const parts = Array.isArray(raw) ? raw : [raw];
+            const lines = [];
+            for (const part of parts) {
+                const isObj = part !== null && typeof part === 'object';
+                const text = isObj ? part.text : part;
+                const opts = isObj ? part : {};
+                const wrapped = col.wrap === false ? [String(text ?? '')] : wrapText(pdf, text, w);
+                for (const line of wrapped) {
+                    lines.push({ text: line, ...opts });
+                }
+            }
+
             return { col, lines };
         });
         const rowH = Math.max(...cells.map((c) => c.lines.length)) * 4 + rowPadY * 2;
@@ -239,8 +282,8 @@ function drawTable(pdf, { columns, rows, y, headerBg = [243, 244, 246] }) {
         for (const { col, lines } of cells) {
             const tx = col.align === 'right' ? x + col.width - rowPadX : x + rowPadX;
             lines.forEach((line, li) => {
-                setFont(pdf, col.size ?? 7.5, col.style ?? 'normal', col.color ?? [17, 24, 39]);
-                pdf.text(line, tx, y + rowPadY + 3 + li * 4, { align: col.align ?? 'left' });
+                setFont(pdf, line.size ?? col.size ?? 7.5, line.style ?? col.style ?? 'normal', line.color ?? col.color ?? [17, 24, 39]);
+                pdf.text(line.text, tx, y + rowPadY + 3 + li * 4, { align: col.align ?? 'left' });
             });
             x += col.width;
         }
@@ -288,7 +331,7 @@ function drawNotes(pdf, text, y) {
     return y + h + 2;
 }
 
-function drawFoot(pdf, store, y, { bullets = null, bullet = false, withNotes = true } = {}) {
+function drawFoot(pdf, store, y, { bullets = null, bullet = false, numbered = false, withNotes = true } = {}) {
     y += 8;
     if (y > PDF.height - PDF.padY - 5) {
         pdf.addPage([PDF.width, PAGE_MM], 'landscape');
@@ -312,11 +355,16 @@ function drawFoot(pdf, store, y, { bullets = null, bullet = false, withNotes = t
 
     const notes = bullets ?? SALE_FOOTER_NOTES;
     setFont(pdf, 6, 'normal', [156, 163, 175]);
-    if (bullet) {
-        // Butir ringkas: rata kiri dengan tanda •.
-        notes.forEach((line) => {
-            for (const [i, row] of wrapText(pdf, line, PDF.widthInner - 4).entries()) {
-                pdf.text(i === 0 ? `•  ${row}` : `    ${row}`, PDF.left, y + 1.5);
+    if (bullet || numbered) {
+        // Butir ringkas: rata kiri dengan tanda • / nomor; sub-poin menjorok.
+        const rows = numbered
+            ? flattenNotes(notes)
+            : notes.map((line) => ({ text: typeof line === 'string' ? line : line.text, sub: false }));
+
+        rows.forEach((row) => {
+            const indent = row.sub ? 6 : 0;
+            for (const line of wrapText(pdf, row.text, PDF.widthInner - 4 - indent)) {
+                pdf.text(line, PDF.left + indent, y + 1.5);
                 y += 3;
             }
         });
@@ -430,9 +478,37 @@ export function storeHead({ store = {}, title = '', invoice = '', badge = null }
 }
 
 export const SALE_FOOTER_NOTES = [
-    'Garansi hangus jika terjadi human error / kesalahan pengguna.',
-    'Tidak ada pengembalian uang atau barang untuk barang yang sudah dibeli.',
+    {
+        text: 'Garansi toko berlaku untuk :',
+        subs: ['Hardware 60 Hari', 'Software 1 Tahun'],
+    },
+    {
+        text: 'Garansi tukar unit jika tidak cocok, dengan syarat :',
+        subs: ['tidak lebih dari 4 hari setelah pembelian', 'penukaran hanya bisa 1x'],
+    },
+    {
+        text: 'Garansi hangus jika terjadi human error / kesalahan pengguna.',
+    },
+    {
+        text: 'Tidak ada pengembalian uang atau barang untuk barang yang sudah dibeli.',
+    },
 ];
+
+/**
+ * Catatan footer dalam baris teks datar (mendukung sub-poin).
+ * @returns {Array<{text: string, sub: boolean}>}
+ */
+function flattenNotes(notes) {
+    return notes.flatMap((note, i) => {
+        const line = typeof note === 'string' ? note : note.text;
+        const rows = [{ text: `${i + 1}. ${line}`, sub: false }];
+        for (const sub of (typeof note === 'string' ? [] : (note.subs ?? []))) {
+            rows.push({ text: `- ${sub}`, sub: true });
+        }
+
+        return rows;
+    });
+}
 
 export const SERVICE_FOOTER_NOTES = [
     'Garansi dengan kerusakan yg sama 1 bln.',
@@ -441,12 +517,20 @@ export const SERVICE_FOOTER_NOTES = [
     'Servisan selesai/cancel yang tidak diambil lebih dari 60 hari di luar tanggung jawab kami.',
 ];
 
-export function storeFoot(store = {}, { notes = SALE_FOOTER_NOTES, bullet = false } = {}) {
-    const body = notes.map((line) => (bullet ? `• ${esc(line)}` : esc(line))).join('<br>');
+export function storeFoot(store = {}, { notes = SALE_FOOTER_NOTES, bullet = false, numbered = false } = {}) {
+    const body = numbered
+        ? flattenNotes(notes)
+            .map((row) => (row.sub
+                ? `<div style="padding-left:3.5mm">${esc(row.text)}</div>`
+                : `<div>${esc(row.text)}</div>`))
+            .join('')
+        : notes
+            .map((line) => (bullet ? `• ${esc(typeof line === 'string' ? line : line.text)}` : esc(typeof line === 'string' ? line : line.text)))
+            .join('<br>');
 
     return `<div class="foot">
         <div>${esc(store.footer ?? 'Terima kasih')}</div>
-        <div style="margin-top:4px;font-size:8px;color:#9ca3af;line-height:1.5;${bullet ? 'text-align:left;' : ''}">
+        <div style="margin-top:4px;font-size:8px;color:#9ca3af;line-height:1.5;${bullet || numbered ? 'text-align:left;' : ''}">
             ${body}
         </div>
     </div>`;
@@ -458,19 +542,20 @@ function itemRows(items = [], { showDiscount = false } = {}) {
         const qty = li.quantity ?? li.qty ?? 0;
         const price = li.price ?? li.buy_price ?? 0;
         const subtotal = li.subtotal ?? (qty * price);
-        const extras = [
-            Array.isArray(li.features) && li.features.length ? `Fitur: ${li.features.join(', ')}` : '',
-            Array.isArray(li.accessories) && li.accessories.length ? `Acc: ${li.accessories.join(', ')}` : '',
-        ].filter(Boolean).join(' &nbsp;·&nbsp; ');
-
         const sub = li.serial_number ? `<span>SN: ${esc(li.serial_number)}</span>` : '';
+        const detailLines = [
+            ...specLines(li.specification).map((line) => `<div class="item-spec">${esc(line)}</div>`),
+            Array.isArray(li.features) && li.features.length ? `<div class="item-spec">${esc(li.features.join(' · '))}</div>` : '',
+            Array.isArray(li.accessories) && li.accessories.length ? `<div class="item-spec">${esc(li.accessories.join(' · '))}</div>` : '',
+            li.warranty ? `<div class="item-spec">Garansi: ${esc(li.warranty)}</div>` : '',
+        ].join('');
 
         return `<tr>
             <td class="idx">${i + 1}</td>
             <td>
                 <div class="item-name">${esc(li.item_name ?? li.name ?? '')}</div>
                 ${sub ? `<div class="item-sub">${sub}</div>` : ''}
-                ${extras ? `<div class="item-spec">${esc(extras)}</div>` : ''}
+                ${detailLines}
             </td>
             <td class="num">${qty}</td>
             <td class="num">${num(price)}</td>
@@ -505,16 +590,22 @@ export function saleBody({ store = {}, sale, title = 'NOTA PENJUALAN' }) {
     const hasDiscount = Number(sale.discount) > 0;
     const headerDiscount = Number(sale.header_discount) || 0;
 
-    const meta = [
+    // Kiri: tanggal → kasir → pembayaran. Kanan: customer/supplier → telepon.
+    const metaLeft = [
         pair('Tanggal', formatDate(sale.created_at)),
         pair('Kasir', sale.user?.name ?? sale.cashier),
-        pair(isPurchase ? 'Supplier' : 'Customer', sale.customer?.name ?? sale.supplier ?? 'Umum'),
-        pair('Telepon', sale.customer?.phone ?? sale.supplier_phone),
         pair('Pembayaran', sale.payment_method),
         pair('No. Nota Supplier', sale.buy_from_reference),
         pair('Dibayar', sale.paid_at ? formatDate(sale.paid_at) : null),
         pair('DP', sale.dp_amount ? money(sale.dp_amount) : null),
     ].join('');
+
+    const metaRight = [
+        pair(isPurchase ? 'Supplier' : 'Customer', sale.customer?.name ?? sale.supplier ?? 'Umum'),
+        pair('Telepon', sale.customer?.phone ?? sale.supplier_phone),
+    ].join('');
+
+    const meta = `<div>${metaLeft}</div><div>${metaRight}</div>`;
 
     return `
         ${storeHead({
@@ -539,7 +630,7 @@ export function saleBody({ store = {}, sale, title = 'NOTA PENJUALAN' }) {
         </div>
 
         ${sale.notes ? `<div class="notes">Catatan: ${esc(sale.notes)}</div>` : ''}
-        ${storeFoot(store)}`;
+        ${storeFoot(store, { numbered: true })}`;
 }
 
 /**
@@ -563,29 +654,58 @@ export async function buildSaleReceiptPdf({ store = {}, sale, title = 'NOTA PENJ
             badge: sale.payment_status ? { label: isPaid ? 'LUNAS' : 'BELUM LUNAS', cls: isPaid ? 'badge-paid' : 'badge-due' } : null,
         });
 
+        // Kiri: tanggal → kasir → pembayaran. Kanan: customer/supplier → telepon.
         y = drawPairs(pdf, [
-            ['Tanggal', formatDate(sale.created_at)],
-            ['Kasir', sale.user?.name ?? sale.cashier ?? '-'],
-            [isPurchase ? 'Supplier' : 'Customer', sale.customer?.name ?? sale.supplier ?? 'Umum'],
-            ...((sale.customer?.phone ?? sale.supplier_phone) ? [['Telepon', sale.customer?.phone ?? sale.supplier_phone]] : []),
-            ['Pembayaran', sale.payment_method ?? '-'],
-            ...(sale.buy_from_reference ? [['No. Nota Supplier', sale.buy_from_reference]] : []),
-            ...(sale.paid_at ? [['Dibayar', formatDate(sale.paid_at)]] : []),
-            sale.dp_amount ? ['DP', money(sale.dp_amount)] : null,
-        ].filter(Boolean), y);
+            [
+                ['Tanggal', formatDate(sale.created_at)],
+                ['Kasir', sale.user?.name ?? sale.cashier ?? '-'],
+                ['Pembayaran', sale.payment_method ?? '-'],
+                ...(sale.buy_from_reference ? [['No. Nota Supplier', sale.buy_from_reference]] : []),
+                ...(sale.paid_at ? [['Dibayar', formatDate(sale.paid_at)]] : []),
+                ...(sale.dp_amount ? [['DP', money(sale.dp_amount)]] : []),
+            ].filter(Boolean),
+            [
+                [isPurchase ? 'Supplier' : 'Customer', sale.customer?.name ?? sale.supplier ?? 'Umum'],
+                ...((sale.customer?.phone ?? sale.supplier_phone) ? [['Telepon', sale.customer?.phone ?? sale.supplier_phone]] : []),
+            ].filter(Boolean),
+        ], y);
 
         const showDiscount = Number(sale.discount) > 0 || items.some((li) => Number(li.discount) > 0) || headerDiscount > 0;
         const cols = [
             { label: '#', width: 8, align: 'left', color: [156, 163, 175], render: (_, i) => i + 1 },
             {
                 label: 'Barang',
-                width: showDiscount ? 82 : 96,
-                render: (li) => li.item_name ?? li.name ?? '',
-                style: 'bold',
+                width: showDiscount ? 74 : 96,
+                render: (li) => {
+                    const rows = [{ text: li.item_name ?? li.name ?? '', style: 'bold' }];
+                    const small = { size: 6, color: [107, 114, 128] };
+
+                    if (li.serial_number) {
+                        rows.push({ text: `SN: ${li.serial_number}`, ...small });
+                    }
+
+                    for (const line of specLines(li.specification)) {
+                        rows.push({ text: line, ...small });
+                    }
+
+                    if (Array.isArray(li.features) && li.features.length) {
+                        rows.push({ text: li.features.join(' · '), ...small });
+                    }
+
+                    if (Array.isArray(li.accessories) && li.accessories.length) {
+                        rows.push({ text: li.accessories.join(' · '), ...small });
+                    }
+
+                    if (li.warranty) {
+                        rows.push({ text: `Garansi: ${li.warranty}`, ...small });
+                    }
+
+                    return rows;
+                },
             },
-            { label: 'Qty', width: 12, align: 'right', render: (li) => li.quantity ?? li.qty ?? 0 },
-            { label: 'Harga', width: 26, align: 'right', render: (li) => num(li.price ?? li.buy_price ?? 0) },
-            showDiscount && { label: 'Diskon', width: 24, align: 'right', render: (li) => (Number(li.discount) > 0 ? `- ${num(li.discount)}` : '-') },
+            { label: 'Qty', width: 10, align: 'right', render: (li) => li.quantity ?? li.qty ?? 0 },
+            { label: 'Harga', width: 24, align: 'right', render: (li) => num(li.price ?? li.buy_price ?? 0) },
+            showDiscount && { label: 'Diskon', width: 26, align: 'right', render: (li) => (Number(li.discount) > 0 ? `- ${num(li.discount)}` : '-') },
             {
                 label: 'Subtotal', width: 0, align: 'right', style: 'bold',
                 render: (li) => num(li.subtotal ?? (li.quantity ?? li.qty ?? 0) * (li.price ?? li.buy_price ?? 0)),
@@ -605,7 +725,7 @@ export async function buildSaleReceiptPdf({ store = {}, sale, title = 'NOTA PENJ
         y = drawTotals(pdf, totals, y);
 
         y = drawNotes(pdf, sale.notes ? `Catatan: ${sale.notes}` : '', y);
-        y = drawFoot(pdf, store, y, { bullets: SALE_FOOTER_NOTES });
+        y = drawFoot(pdf, store, y, { bullets: SALE_FOOTER_NOTES, numbered: true });
 
     return y + 2;
     };
