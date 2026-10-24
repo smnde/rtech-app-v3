@@ -7,6 +7,7 @@ use App\Http\Resources\GadgetsResource;
 use App\Models\Brand;
 use App\Models\Gadget;
 use App\Models\Supplier;
+use App\Support\ItemImage;
 use App\Support\StockHistory;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
@@ -57,6 +58,7 @@ class GadgetsController extends Controller
                 'supplier_name' => $gadget->supplier?->name,
                 'serialnumber' => $gadget->serialnumber,
                 'warranty' => $gadget->warranty,
+                'image' => ItemImage::url($gadget->image),
                 'specification' => $gadget->specification,
                 'accessories' => $gadget->accessories ?? [],
                 'issue_notes' => $gadget->issue_notes ?? [],
@@ -67,7 +69,11 @@ class GadgetsController extends Controller
 
     public function store(GadgetRequest $request): RedirectResponse
     {
-        $gadget = Gadget::create([...$request->validated(), 'specification' => $request->validated('specification') ?? []]);
+        $data = collect($request->validated())->except(['image', 'remove_image'])->all();
+        $data['image'] = ItemImage::store($request->file('image'));
+        $data['specification'] = $request->validated('specification') ?? [];
+
+        $gadget = Gadget::create($data);
 
         return back()->with('success', 'Gadget berhasil ditambahkan.')->with('created_item', [
             'item_type' => 'gadget',
@@ -81,7 +87,16 @@ class GadgetsController extends Controller
 
     public function update(GadgetRequest $request, Gadget $gadget): RedirectResponse
     {
-        $gadget->update([...collect($request->validated())->except('stock')->all(), 'specification' => $request->validated('specification') ?? []]);
+        $data = collect($request->validated())->except(['stock', 'image', 'remove_image'])->all();
+
+        if ($request->boolean('remove_image')) {
+            ItemImage::delete($gadget->image);
+            $data['image'] = null;
+        } elseif ($request->hasFile('image')) {
+            $data['image'] = ItemImage::store($request->file('image'), $gadget->image);
+        }
+
+        $gadget->update([...$data, 'specification' => $request->validated('specification') ?? []]);
 
         return back()->with('success', 'Gadget berhasil diperbarui.');
     }
@@ -93,6 +108,8 @@ class GadgetsController extends Controller
         } catch (QueryException) {
             return back()->with('error', 'Gadget tidak dapat dihapus karena sudah memiliki data transaksi.');
         }
+
+        ItemImage::delete($gadget->image);
 
         return back()->with('success', 'Gadget berhasil dihapus.');
     }

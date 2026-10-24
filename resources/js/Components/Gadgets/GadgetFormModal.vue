@@ -7,6 +7,7 @@ import AppDropdown from '@/Components/UI/AppDropdown.vue';
 import AppNumberInput from '@/Components/UI/AppNumberInput.vue';
 import AppCurrencyInput from '@/Components/UI/AppCurrencyInput.vue';
 import AppTagInput from '@/Components/UI/AppTagInput.vue';
+import AppImageUpload from '@/Components/UI/AppImageUpload.vue';
 
 const props = defineProps({
     show:      { type: Boolean, default: false },
@@ -40,6 +41,8 @@ const emptyForm = () => ({
 const form    = ref(emptyForm());
 const errors  = ref({});
 const loading = ref(false);
+const imageFile    = ref(null);
+const imageRemoved = ref(false);
 
 const isEdit = computed(() => props.item !== null);
 const title  = computed(() => isEdit.value ? 'Edit Gadget' : 'Tambah Gadget');
@@ -59,6 +62,8 @@ watch(
     (val) => {
         if (!val) return;
         errors.value = {};
+        imageFile.value = null;
+        imageRemoved.value = false;
         form.value = props.item
             ? {
                 name:          props.item.name          ?? '',
@@ -115,6 +120,8 @@ const handleSubmit = () => {
         accessories:   form.value.accessories,
         issue_notes:   form.value.issue_notes,
         notes:         form.value.notes || null,
+        ...(imageFile.value ? { image: imageFile.value } : {}),
+        ...(imageRemoved.value && !imageFile.value ? { remove_image: true } : {}),
     });
 };
 
@@ -210,6 +217,21 @@ const labelClass = 'block text-sm font-medium text-gray-700 dark:text-gray-300 m
                     <label :class="labelClass">Harga Jual</label>
                     <AppCurrencyInput v-model="form.sell_price" />
                 </div>
+            </section>
+
+            <!-- Foto produk -->
+            <section class="border-t border-gray-100 pt-5 dark:border-gray-800">
+                <div class="mb-3 flex items-center justify-between gap-2">
+                    <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Foto Produk</h3>
+                    <span class="text-xs text-gray-400 dark:text-gray-500">Opsional · 1 gambar</span>
+                </div>
+                <AppImageUpload
+                    v-model:file="imageFile"
+                    :existing="imageRemoved ? null : (props.item?.image ?? null)"
+                    :error="!!errors.image"
+                    @remove-existing="imageRemoved = true"
+                />
+                <p v-if="errors.image" class="mt-1.5 text-xs text-red-500">{{ errors.image }}</p>
             </section>
 
             <!-- Spesifikasi -->

@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Support\ItemImage;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -19,6 +20,7 @@ class LaptopsResource extends JsonResource
             'name' => $this->name,
             'sku' => $this->sku,
             'code' => $this->code,
+            'image' => ItemImage::url($this->image),
             'serialnumber' => $this->serialnumber,
             'warranty' => $this->warranty,
             'stock' => $this->stock,

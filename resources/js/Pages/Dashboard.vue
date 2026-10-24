@@ -8,6 +8,7 @@ import AppCard from '@/Components/UI/AppCard.vue';
 import AppModal from '@/Components/UI/AppModal.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
 import AppCurrencyInput from '@/Components/UI/AppCurrencyInput.vue';
+import LaptopQuickDetail from '@/Components/Laptops/LaptopQuickDetail.vue';
 import { useToast } from '@/composables/useToast';
 
 const props = defineProps({
@@ -95,22 +96,6 @@ const submitPost = () => {
 };
 
 const labelClass = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5';
-
-const specLabels = { cpu: 'CPU', gpu: 'GPU', memory: 'Memory', storage: 'Storage', display: 'Display' };
-
-const specRows = (item) => Object.entries(specLabels).map(([key, label]) => ({
-    label,
-    value: item.specification?.[key] || '-',
-}));
-
-const detailRows = (item) => [
-    { label: 'Nama', value: item.name },
-    { label: 'SKU', value: item.sku, mono: true },
-    ...(item.code ? [{ label: 'Kode', value: item.code, mono: true }] : []),
-    ...(item.supplier?.name ? [{ label: 'Supplier', value: item.supplier.name }] : []),
-    { label: 'Garansi', value: item.warranty },
-    { label: 'Harga Beli', value: formatRupiah(item.buy_price) },
-];
 </script>
 
 <template>
@@ -194,96 +179,32 @@ const detailRows = (item) => [
             </AppCard>
         </div>
 
-        <AppModal :show="!!priceItem" title="Kasih Harga Jual" size="md" @close="closePrice">
-            <div v-if="priceItem" class="space-y-4">
-                <dl class="divide-y divide-gray-100 dark:divide-gray-800">
-                    <div v-for="row in detailRows(priceItem)" :key="row.label" class="grid grid-cols-3 gap-3 py-2.5">
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ row.label }}</dt>
-                        <dd :class="['col-span-2 text-sm text-gray-900 dark:text-white', row.mono ? 'font-mono' : 'font-medium']">{{ row.value || '-' }}</dd>
+        <AppModal :show="!!priceItem" title="Kasih Harga Jual" size="lg" @close="closePrice">
+            <LaptopQuickDetail v-if="priceItem" :item="priceItem" with-history>
+                <template #after-summary>
+                    <div class="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3.5">
+                        <label :class="labelClass">Harga Jual <span class="text-red-500">*</span></label>
+                        <AppCurrencyInput v-model="priceForm.sell_price" :error="!!priceError" placeholder="0" />
+                        <p v-if="priceError" class="mt-1.5 text-xs text-red-500">{{ priceError }}</p>
                     </div>
-                </dl>
-
-                <div>
-                    <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Spesifikasi</p>
-                    <dl class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                        <div v-for="row in specRows(priceItem)" :key="row.label" class="flex gap-2">
-                            <dt class="w-16 shrink-0 text-xs font-medium uppercase text-gray-500 dark:text-gray-500 pt-0.5">{{ row.label }}</dt>
-                            <dd class="text-gray-800 dark:text-gray-200">{{ row.value }}</dd>
-                        </div>
-                    </dl>
-                </div>
-
-                <div>
-                    <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Fitur</p>
-                    <div v-if="priceItem.features?.length" class="flex flex-wrap gap-1.5">
-                        <span v-for="(feature, index) in priceItem.features" :key="`${feature}-${index}`"
-                            class="rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-1 text-xs text-indigo-600 dark:text-indigo-300">{{ feature }}</span>
-                    </div>
-                    <p v-else class="text-xs text-gray-400 dark:text-gray-600">-</p>
-                </div>
-
-                <div>
-                    <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Kelengkapan</p>
-                    <div v-if="priceItem.accessories?.length" class="flex flex-wrap gap-1.5">
-                        <span v-for="(accessory, index) in priceItem.accessories" :key="`${accessory}-${index}`"
-                            class="rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-xs text-amber-600 dark:text-amber-300">{{ accessory }}</span>
-                    </div>
-                    <p v-else class="text-xs text-gray-400 dark:text-gray-600">-</p>
-                </div>
-
-                <div>
-                    <label :class="labelClass">Harga Jual <span class="text-red-500">*</span></label>
-                    <AppCurrencyInput v-model="priceForm.sell_price" :error="!!priceError" placeholder="0" />
-                    <p v-if="priceError" class="mt-1.5 text-xs text-red-500">{{ priceError }}</p>
-                </div>
-            </div>
+                </template>
+            </LaptopQuickDetail>
             <template #footer>
                 <AppButton variant="secondary" size="sm" @click="closePrice">Batal</AppButton>
                 <AppButton variant="primary" size="sm" :loading="priceSaving" @click="submitPrice">Simpan Harga</AppButton>
             </template>
         </AppModal>
 
-        <AppModal :show="!!postItem" title="Post Laptop" size="md" @close="closePost">
-            <div v-if="postItem" class="space-y-4">
-                <dl class="divide-y divide-gray-100 dark:divide-gray-800">
-                    <div v-for="row in detailRows(postItem)" :key="row.label" class="grid grid-cols-3 gap-3 py-2.5">
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ row.label }}</dt>
-                        <dd :class="['col-span-2 text-sm text-gray-900 dark:text-white', row.mono ? 'font-mono' : 'font-medium']">{{ row.value || '-' }}</dd>
-                    </div>
-                    <div class="grid grid-cols-3 gap-3 py-2.5">
-                        <dt class="text-xs font-medium text-gray-500 dark:text-gray-400">Harga Jual</dt>
-                        <dd class="col-span-2 text-sm font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">{{ formatRupiah(postItem.sell_price) }}</dd>
-                    </div>
-                </dl>
-
-                <div>
-                    <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Spesifikasi</p>
-                    <dl class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                        <div v-for="row in specRows(postItem)" :key="row.label" class="flex gap-2">
-                            <dt class="w-16 shrink-0 text-xs font-medium uppercase text-gray-500 dark:text-gray-500 pt-0.5">{{ row.label }}</dt>
-                            <dd class="text-gray-800 dark:text-gray-200">{{ row.value }}</dd>
-                        </div>
-                    </dl>
-                </div>
-
-                <div>
-                    <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Fitur</p>
-                    <div v-if="postItem.features?.length" class="flex flex-wrap gap-1.5">
-                        <span v-for="(feature, index) in postItem.features" :key="`${feature}-${index}`"
-                            class="rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-1 text-xs text-indigo-600 dark:text-indigo-300">{{ feature }}</span>
-                    </div>
-                    <p v-else class="text-xs text-gray-400 dark:text-gray-600">-</p>
-                </div>
-
-                <div>
-                    <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Kelengkapan</p>
-                    <div v-if="postItem.accessories?.length" class="flex flex-wrap gap-1.5">
-                        <span v-for="(accessory, index) in postItem.accessories" :key="`${accessory}-${index}`"
-                            class="rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-xs text-amber-600 dark:text-amber-300">{{ accessory }}</span>
-                    </div>
-                    <p v-else class="text-xs text-gray-400 dark:text-gray-600">-</p>
-                </div>
-            </div>
+        <AppModal :show="!!postItem" title="Post Laptop" size="lg" @close="closePost">
+            <LaptopQuickDetail v-if="postItem" :item="postItem" with-history>
+                <template #after-summary>
+                    <p class="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3.5 py-3 text-xs leading-relaxed text-emerald-700 dark:text-emerald-300">
+                        Laptop akan di-post dengan harga jual
+                        <span class="font-semibold">{{ formatRupiah(postItem.sell_price) }}</span>.
+                        Status otomatis berubah menjadi <span class="font-semibold">DISPLAY</span>.
+                    </p>
+                </template>
+            </LaptopQuickDetail>
             <template #footer>
                 <AppButton variant="secondary" size="sm" @click="closePost">Batal</AppButton>
                 <AppButton variant="primary" size="sm" :loading="postSaving" @click="submitPost">Post Sekarang</AppButton>

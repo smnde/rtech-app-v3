@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Model;
     'supplier_id',
     'name',
     'sku',
+    'image',
     'serialnumber',
     'warranty',
     'stock',

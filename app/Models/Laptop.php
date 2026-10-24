@@ -16,6 +16,7 @@ use Illuminate\Support\Str;
         'name',
         'sku',
         'code',
+        'image',
         'serialnumber',
         'warranty',
         'stock',
@@ -78,7 +79,7 @@ class Laptop extends Model
         $existingIssues = collect($existing);
 
         return collect($texts)
-            ->map(fn(string $text) => $existingIssues->firstWhere('text', $text) ?? [
+            ->map(fn (string $text) => $existingIssues->firstWhere('text', $text) ?? [
                 'id' => (string) Str::uuid(),
                 'text' => $text,
                 'solved' => false,
@@ -94,7 +95,7 @@ class Laptop extends Model
     public function issues(): array
     {
         return collect($this->issue_notes ?? [])
-            ->map(fn(mixed $issue) => is_array($issue) ? $issue : [
+            ->map(fn (mixed $issue) => is_array($issue) ? $issue : [
                 'id' => md5((string) $issue),
                 'text' => (string) $issue,
                 'solved' => false,

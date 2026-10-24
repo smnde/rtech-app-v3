@@ -1,7 +1,7 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, LogIn, LogOut, Layers, Plus, Printer, Pencil } from 'lucide-vue-next';
+import { ArrowLeft, LogIn, LogOut, Layers, Plus, Printer, Pencil, Eye, EyeOff, X } from 'lucide-vue-next';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import LaptopFormModal from '@/Components/Laptops/LaptopFormModal.vue';
 import AppModal from '@/Components/UI/AppModal.vue';
@@ -143,6 +143,26 @@ const stockHistory = computed(() =>
 const isLaptop = computed(() => props.module === 'laptop');
 const hasAccessories = computed(() => props.module === 'laptop' || props.module === 'gadget');
 const hasSpecification = computed(() => ['laptop', 'gadget'].includes(props.module));
+const hasImage = computed(() => hasSpecification.value && !!props.item.image);
+const showImage = ref(false);
+const showLightbox = ref(false);
+
+// Esc menutup lightbox foto.
+const onLightboxKeydown = (event) => {
+    if (event.key === 'Escape') {
+        showLightbox.value = false;
+    }
+};
+
+watch(showLightbox, (open) => {
+    if (open) {
+        window.addEventListener('keydown', onLightboxKeydown);
+    } else {
+        window.removeEventListener('keydown', onLightboxKeydown);
+    }
+});
+
+onUnmounted(() => window.removeEventListener('keydown', onLightboxKeydown));
 
 const infoCells = computed(() => {
     const cells = [
@@ -206,9 +226,6 @@ const formatMovementQuantity = (movement) => {
     if (movement.type === 'out') return `−${movement.quantity}`;
     return `set ${movement.quantity}`;
 };
-
-// Bagian kanan desktop (spek/fitur/aksesori/kendala) dirender juga untuk mobile
-// lewat komponen <RightSections> di bawah agar urutan mobile rapi.
 </script>
 
 <template>
@@ -236,15 +253,19 @@ const formatMovementQuantity = (movement) => {
             </div>
 
             <!--
-                Urutan mobile: Informasi umum → Spesifikasi → Fitur → Aksesori → Kendala
+                Urutan mobile: Informasi umum → Foto → Spesifikasi → Fitur → Aksesori → Kendala
                                 → Riwayat Aktivitas → Riwayat Stok (mutasi).
-                Desktop: kiri 2 kolom (info, log, mutasi) + kanan 1 kolom (spek, fitur, aksesori, kendala).
-                Source order = urutan mobile. Penempatan desktop via lg:col-start/row-start.
+                Desktop: dua kolom flex (kiri: info, log, mutasi; kanan: foto, spek, fitur, aksesori,
+                kendala) supaya tinggi tiap card mengikuti isinya sendiri, tidak ikut meregang.
+                Source order = urutan mobile.
             -->
-            <div class="scrollbar-styled scrollbar-mobile-hidden flex-1 min-h-0 overflow-auto flex flex-col gap-4 lg:grid lg:grid-cols-3">
+            <div class="scrollbar-styled scrollbar-mobile-hidden flex-1 min-h-0 overflow-auto flex flex-col gap-4 lg:grid lg:grid-cols-3 lg:items-start lg:gap-4">
 
-                <!-- 1. Informasi umum — kiri (col 1-2, row 1) -->
-                <div :class="cardClass" class="lg:col-span-2 lg:row-start-1">
+                <!-- Kolom kiri (di mobile dibuka via `contents` supaya urutan tetap) -->
+                <div class="contents lg:col-span-2 lg:flex lg:flex-col lg:gap-4">
+
+                <!-- 1. Informasi umum — kiri (col 1-2) -->
+                <div :class="cardClass" class="order-1 lg:order-none">
                     <div class="mb-3 flex items-center justify-between gap-3">
                         <h2 :class="sectionTitle" class="mb-0">Informasi Umum</h2>
                         <span v-if="item.code" class="rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 font-mono text-xs font-medium text-gray-600 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300">
@@ -275,70 +296,8 @@ const formatMovementQuantity = (movement) => {
                     </p>
                 </div>
 
-                <!-- 2. Spesifikasi — kanan (col 3, row 1) -->
-                <div v-if="hasSpecification" :class="cardClass" class="lg:col-start-3 lg:row-start-1">
-                    <h2 :class="sectionTitle">Spesifikasi</h2>
-                    <div class="space-y-2">
-                        <div v-for="row in specRows" :key="row.label" class="flex gap-3 text-sm">
-                            <span class="w-20 shrink-0 pt-0.5 text-xs font-medium uppercase text-gray-500 dark:text-gray-500">{{ row.label }}</span>
-                            <span class="text-gray-800 dark:text-gray-200">{{ row.value }}</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 3. Fitur — kanan (col 3, row 2), laptop only -->
-                <div v-if="isLaptop" :class="[cardClass, 'lg:col-start-3 lg:row-start-2']">
-                    <h2 :class="sectionTitle">Fitur</h2>
-                    <div v-if="(item.features ?? []).length" class="flex flex-wrap gap-1.5">
-                        <span v-for="(tag, index) in (item.features ?? [])" :key="`f-${index}`"
-                            class="rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-1 text-xs text-indigo-600 dark:text-indigo-300">
-                            {{ tag }}
-                        </span>
-                    </div>
-                    <p v-else class="text-xs text-gray-400 dark:text-gray-600">-</p>
-                </div>
-
-                <!-- 4. Aksesori — kanan (col 3, row 3), laptop/gadget -->
-                <div v-if="hasAccessories" :class="[cardClass, 'lg:col-start-3 lg:row-start-3']">
-                    <h2 :class="sectionTitle">Aksesori</h2>
-                    <div v-if="(item.accessories ?? []).length" class="flex flex-wrap gap-1.5">
-                        <span v-for="(tag, index) in (item.accessories ?? [])" :key="`a-${index}`"
-                            class="rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-xs text-amber-600 dark:text-amber-300">
-                            {{ tag }}
-                        </span>
-                    </div>
-                    <p v-else class="text-xs text-gray-400 dark:text-gray-600">-</p>
-                </div>
-
-                <!-- 5. Kendala — kanan (col 3, row 4) -->
-                <div v-if="hasSpecification" :class="[cardClass, 'border-red-100 dark:border-red-500/20']" class="lg:col-start-3 lg:row-start-4">
-                    <div class="mb-3 flex items-center justify-between gap-2">
-                        <h2 class="text-xs font-semibold uppercase tracking-wider text-red-500 dark:text-red-400">Kendala</h2>
-                        <AppButton v-if="can('edit laptop')" size="sm" variant="outline" @click="showIssueModal = true">
-                            <Plus class="h-3.5 w-3.5" />
-                            Tambah
-                        </AppButton>
-                    </div>
-                    <div v-if="issues.length" class="space-y-1.5">
-                        <label v-for="issue in issues" :key="issue.id"
-                            :class="['flex items-start gap-2.5 rounded-lg border p-2 text-xs transition-colors',
-                                    issue.solved ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-red-500/20 bg-red-500/5']">
-                            <input type="checkbox" :checked="issue.solved" :disabled="!can('edit laptop') || issueToggling === issue.id"
-                                class="mt-0.5 h-3.5 w-3.5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
-                                @change="toggleIssue(issue)" />
-                            <div class="min-w-0 flex-1">
-                                <p :class="issue.solved ? 'text-gray-500 line-through dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'">{{ issue.text }}</p>
-                                <p v-if="issue.solved" class="mt-0.5 text-[10px] text-emerald-600 dark:text-emerald-400">
-                                    ✓ Selesai {{ formatDateTime(issue.solved_at) }}
-                                </p>
-                            </div>
-                        </label>
-                    </div>
-                    <p v-else class="text-xs text-gray-400 dark:text-gray-600">Tidak ada kendala.</p>
-                </div>
-
-                <!-- 6. Riwayat aktivitas — kiri (col 1-2, row 2) -->
-                <div v-if="isLaptop" :class="cardClass" class="lg:col-span-2 lg:row-start-2">
+                <!-- 6. Riwayat aktivitas — kiri -->
+                <div v-if="isLaptop" :class="cardClass" class="order-6">
                     <div class="mb-3 flex items-center justify-between gap-3">
                         <h2 :class="sectionTitle" class="mb-0">Riwayat Aktivitas</h2>
                         <AppButton v-if="can('edit laptop')" size="sm" @click="showLogModal = true">
@@ -361,8 +320,8 @@ const formatMovementQuantity = (movement) => {
                     </button>
                 </div>
 
-                <!-- 7. Riwayat stok (mutasi) — kiri (col 1-2, row 3) -->
-                <div :class="cardClass" class="lg:col-span-2 lg:row-start-3">
+                <!-- 7. Riwayat stok (mutasi) — kiri -->
+                <div :class="cardClass" class="order-7">
                     <h2 :class="sectionTitle">Riwayat Stok</h2>
                     <div v-if="stockHistory.length" class="space-y-2.5">
                         <div v-for="movement in stockHistory" :key="movement.id"
@@ -396,6 +355,95 @@ const formatMovementQuantity = (movement) => {
                         </div>
                     </div>
                     <p v-else class="text-sm text-gray-400 dark:text-gray-500">Belum ada mutasi stok tercatat.</p>
+                </div>
+                </div>
+
+                <!-- Kolom kanan -->
+                <div class="contents lg:flex lg:flex-col lg:gap-4">
+
+                <!-- 2a. Foto produk (opsional, default tersembunyi) — kanan -->
+                <div v-if="hasImage" :class="cardClass" class="order-2 lg:order-none">
+                    <div class="flex items-center justify-between gap-2" :class="showImage ? 'mb-3' : ''">
+                        <h2 :class="sectionTitle" class="mb-0">Foto Produk</h2>
+                        <button type="button" @click="showImage = !showImage"
+                            class="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-gray-200 px-2 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800">
+                            <Eye v-if="!showImage" class="h-3.5 w-3.5" />
+                            <EyeOff v-else class="h-3.5 w-3.5" />
+                            {{ showImage ? 'Sembunyikan' : 'Tampilkan' }}
+                        </button>
+                    </div>
+                    <div v-show="showImage" class="overflow-hidden rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-800/40">
+                        <button type="button" class="group relative block w-full cursor-zoom-in" @click="showLightbox = true">
+                            <img :src="item.image" :alt="item.name" class="h-48 w-full object-contain transition-opacity group-hover:opacity-90" />
+                            <span class="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all group-hover:bg-black/20 group-hover:opacity-100">
+                                <Eye class="h-6 w-6 text-white drop-shadow" />
+                            </span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 2b. Spesifikasi — kanan -->
+                <div v-if="hasSpecification" :class="cardClass" class="order-2 lg:order-none">
+                    <h2 :class="sectionTitle">Spesifikasi</h2>
+                    <div class="space-y-2">
+                        <div v-for="row in specRows" :key="row.label" class="flex gap-3 text-sm">
+                            <span class="w-20 shrink-0 pt-0.5 text-xs font-medium uppercase text-gray-500 dark:text-gray-500">{{ row.label }}</span>
+                            <span class="text-gray-800 dark:text-gray-200">{{ row.value }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Fitur — kanan, laptop only -->
+                <div v-if="isLaptop" :class="cardClass" class="order-3 lg:order-none">
+                    <h2 :class="sectionTitle">Fitur</h2>
+                    <div v-if="(item.features ?? []).length" class="flex flex-wrap gap-1.5">
+                        <span v-for="(tag, index) in (item.features ?? [])" :key="`f-${index}`"
+                            class="rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-1 text-xs text-indigo-600 dark:text-indigo-300">
+                            {{ tag }}
+                        </span>
+                    </div>
+                    <p v-else class="text-xs text-gray-400 dark:text-gray-600">-</p>
+                </div>
+
+                <!-- 4. Aksesori — kanan, laptop/gadget -->
+                <div v-if="hasAccessories" :class="cardClass" class="order-4 lg:order-none">
+                    <h2 :class="sectionTitle">Aksesori</h2>
+                    <div v-if="(item.accessories ?? []).length" class="flex flex-wrap gap-1.5">
+                        <span v-for="(tag, index) in (item.accessories ?? [])" :key="`a-${index}`"
+                            class="rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-xs text-amber-600 dark:text-amber-300">
+                            {{ tag }}
+                        </span>
+                    </div>
+                    <p v-else class="text-xs text-gray-400 dark:text-gray-600">-</p>
+                </div>
+
+                <!-- 5. Kendala — kanan -->
+                <div v-if="hasSpecification" :class="cardClass" class="order-5 border-red-100 lg:order-none dark:border-red-500/20">
+                    <div class="mb-3 flex items-center justify-between gap-2">
+                        <h2 class="text-xs font-semibold uppercase tracking-wider text-red-500 dark:text-red-400">Kendala</h2>
+                        <AppButton v-if="can('edit laptop')" size="sm" variant="outline" @click="showIssueModal = true">
+                            <Plus class="h-3.5 w-3.5" />
+                            Tambah
+                        </AppButton>
+                    </div>
+                    <div v-if="issues.length" class="space-y-1.5">
+                        <label v-for="issue in issues" :key="issue.id"
+                            :class="['flex items-start gap-2.5 rounded-lg border p-2 text-xs transition-colors',
+                                    issue.solved ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-red-500/20 bg-red-500/5']">
+                            <input type="checkbox" :checked="issue.solved" :disabled="!can('edit laptop') || issueToggling === issue.id"
+                                class="mt-0.5 h-3.5 w-3.5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                                @change="toggleIssue(issue)" />
+                            <div class="min-w-0 flex-1">
+                                <p :class="issue.solved ? 'text-gray-500 line-through dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'">{{ issue.text }}</p>
+                                <p v-if="issue.solved" class="mt-0.5 text-[10px] text-emerald-600 dark:text-emerald-400">
+                                    ✓ Selesai {{ formatDateTime(issue.solved_at) }}
+                                </p>
+                            </div>
+                        </label>
+                    </div>
+                    <p v-else class="text-xs text-gray-400 dark:text-gray-600">Tidak ada kendala.</p>
+                </div>
+
                 </div>
             </div>
 
@@ -434,6 +482,28 @@ const formatMovementQuantity = (movement) => {
                     </div>
                 </form>
             </AppModal>
+
+            <!-- Lightbox foto produk -->
+            <Teleport to="body">
+                <Transition
+                    enter-active-class="transition duration-150 ease-out"
+                    enter-from-class="opacity-0"
+                    leave-active-class="transition duration-100 ease-in"
+                    leave-to-class="opacity-0"
+                >
+                    <div v-if="showLightbox && hasImage"
+                        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm sm:p-8"
+                        @click.self="showLightbox = false">
+                        <button type="button" @click="showLightbox = false"
+                            class="absolute right-4 top-4 rounded-lg p-2 text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+                            aria-label="Tutup">
+                            <X class="h-6 w-6" />
+                        </button>
+                        <img :src="item.image" :alt="item.name"
+                            class="max-h-[88vh] max-w-full rounded-lg object-contain shadow-2xl" />
+                    </div>
+                </Transition>
+            </Teleport>
         </div>
     </AppLayout>
 </template>

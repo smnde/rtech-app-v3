@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Support\ItemImage;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -18,6 +19,7 @@ class GadgetsResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'sku' => $this->sku,
+            'image' => ItemImage::url($this->image),
             'serialnumber' => $this->serialnumber,
             'warranty' => $this->warranty,
             'stock' => $this->stock,

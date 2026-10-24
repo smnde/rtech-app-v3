@@ -9,6 +9,7 @@ use App\Models\ItemLog;
 use App\Models\Laptop;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Support\ItemImage;
 use App\Support\StockHistory;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
@@ -61,6 +62,7 @@ class LaptopsController extends Controller
                 'serialnumber' => $laptop->serialnumber,
                 'warranty' => $laptop->warranty,
                 'code' => $laptop->code,
+                'image' => ItemImage::url($laptop->image),
                 'specification' => $laptop->specification,
                 'accessories' => $laptop->accessories ?? [],
                 'features' => $laptop->features ?? [],
@@ -91,6 +93,8 @@ class LaptopsController extends Controller
     {
         $data = $request->validated();
         $data['issue_notes'] = Laptop::issuesFromTexts($data['issue_notes'] ?? []);
+        $data['image'] = ItemImage::store($request->file('image'));
+        unset($data['remove_image']);
 
         $laptop = Laptop::create($data);
 
@@ -106,10 +110,17 @@ class LaptopsController extends Controller
 
     public function update(LaptopRequest $request, Laptop $laptop): RedirectResponse
     {
-        $data = collect($request->validated())->except('stock')->all();
+        $data = collect($request->validated())->except(['stock', 'image', 'remove_image'])->all();
 
         if (array_key_exists('issue_notes', $data)) {
             $data['issue_notes'] = Laptop::issuesFromTexts($data['issue_notes'] ?? [], $laptop->issues());
+        }
+
+        if ($request->boolean('remove_image')) {
+            ItemImage::delete($laptop->image);
+            $data['image'] = null;
+        } elseif ($request->hasFile('image')) {
+            $data['image'] = ItemImage::store($request->file('image'), $laptop->image);
         }
 
         $laptop->update($data);
@@ -149,6 +160,8 @@ class LaptopsController extends Controller
         } catch (QueryException) {
             return back()->with('error', 'Laptop tidak dapat dihapus karena sudah memiliki data transaksi.');
         }
+
+        ItemImage::delete($laptop->image);
 
         return back()->with('success', 'Laptop berhasil dihapus.');
     }

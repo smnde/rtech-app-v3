@@ -23,6 +23,8 @@ class LaptopRequest extends FormRequest
             'supplier_id' => ['nullable', 'integer', 'exists:suppliers,id'],
             'name' => ['required', 'string', 'max:255'],
             'code' => ['nullable', 'string', 'max:255'],
+            'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'remove_image' => ['nullable', 'boolean'],
             'serialnumber' => ['nullable', 'string', 'max:255', Rule::unique('laptops', 'serialnumber')->ignore($this->route('laptop'))],
             'warranty' => ['required', 'string', 'max:255'],
             'stock' => [$this->route('laptop') ? 'prohibited' : 'required', 'integer', 'min:0'],
