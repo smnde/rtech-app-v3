@@ -117,7 +117,8 @@ const detailRows = (item) => [
     <Head title="Dashboard" />
 
     <AppLayout title="Dashboard">
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-3 sm:mb-6">
+        <div class="flex min-h-0 flex-1 flex-col sm:block">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-3 sm:mb-6 shrink-0">
             <div
                 v-for="(card, index) in statCards"
                 :key="card.label"
@@ -142,9 +143,9 @@ const detailRows = (item) => [
             <ChevronDown v-else class="h-4 w-4" />
         </button>
 
-        <div v-if="needPrice.length || needPost.length" class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <AppCard v-if="needPrice.length" :padded="false">
-                <div class="flex items-center gap-3 px-5 py-4 border-b border-gray-200 dark:border-gray-800">
+        <div v-if="needPrice.length || needPost.length" class="grid min-h-0 flex-1 auto-rows-fr grid-cols-1 gap-4 pb-2 sm:auto-rows-auto lg:flex-none lg:grid-cols-2 lg:pb-0">
+            <AppCard v-if="needPrice.length" :padded="false" body-class="flex min-h-0 flex-1 flex-col" class="flex min-h-0 flex-col">
+                <div class="flex shrink-0 items-center gap-3 px-5 py-4 border-b border-gray-200 dark:border-gray-800">
                     <div class="w-9 h-9 rounded-lg flex items-center justify-center bg-amber-500/10 text-amber-600 dark:text-amber-400">
                         <Tag class="h-5 w-5" />
                     </div>
@@ -156,7 +157,7 @@ const detailRows = (item) => [
                         {{ needPrice.length }}
                     </span>
                 </div>
-                <div class="max-h-72 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800">
+                <div class="min-h-0 flex-1 overflow-y-auto scrollbar-styled divide-y divide-gray-100 dark:divide-gray-800 sm:max-h-72">
                     <div v-for="item in needPrice" :key="item.id" class="flex items-center gap-3 px-5 py-2.5">
                         <div class="min-w-0 flex-1">
                             <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ item.name }}</p>
@@ -167,8 +168,8 @@ const detailRows = (item) => [
                 </div>
             </AppCard>
 
-            <AppCard v-if="needPost.length" :padded="false">
-                <div class="flex items-center gap-3 px-5 py-4 border-b border-gray-200 dark:border-gray-800">
+            <AppCard v-if="needPost.length" :padded="false" body-class="flex min-h-0 flex-1 flex-col" class="flex min-h-0 flex-col">
+                <div class="flex shrink-0 items-center gap-3 px-5 py-4 border-b border-gray-200 dark:border-gray-800">
                     <div class="w-9 h-9 rounded-lg flex items-center justify-center bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                         <Send class="h-5 w-5" />
                     </div>
@@ -180,7 +181,7 @@ const detailRows = (item) => [
                         {{ needPost.length }}
                     </span>
                 </div>
-                <div class="max-h-72 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800">
+                <div class="min-h-0 flex-1 overflow-y-auto scrollbar-styled divide-y divide-gray-100 dark:divide-gray-800 sm:max-h-72">
                     <div v-for="item in needPost" :key="item.id" class="flex items-center gap-3 px-5 py-2.5">
                         <div class="min-w-0 flex-1">
                             <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ item.name }}</p>
@@ -288,5 +289,6 @@ const detailRows = (item) => [
                 <AppButton variant="primary" size="sm" :loading="postSaving" @click="submitPost">Post Sekarang</AppButton>
             </template>
         </AppModal>
+        </div>
     </AppLayout>
 </template>

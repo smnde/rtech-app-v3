@@ -14,6 +14,7 @@ import AppBadge from '@/Components/UI/AppBadge.vue';
 import AppNumberInput from '@/Components/UI/AppNumberInput.vue';
 import AppCurrencyInput from '@/Components/UI/AppCurrencyInput.vue';
 import AppDatePicker from '@/Components/UI/AppDatePicker.vue';
+import AppSelect from '@/Components/UI/AppSelect.vue';
 import CustomerFormModal  from '@/Components/Customers/CustomerFormModal.vue';
 import SupplierFormModal  from '@/Components/Suppliers/SupplierFormModal.vue';
 import SparepartFormModal from '@/Components/Spareparts/SparepartFormModal.vue';
@@ -23,6 +24,7 @@ import GadgetFormModal    from '@/Components/Gadgets/GadgetFormModal.vue';
 
 const props = defineProps({
     products: { type: Array, default: () => [] },
+    cashiers: { type: Array, default: () => [] },
     suppliers: { type: Array, default: () => [] },
     customers: { type: Array, default: () => [] },
     brands: { type: Array, default: () => [] },
@@ -38,6 +40,7 @@ const page = usePage();
 // `invoice` TIDAK ada di form — dibuat otomatis oleh BE.
 const form = ref({
     date: new Date().toISOString().slice(0, 10),
+    user_id: '',               // kasir yang dipilih (wajib)
     buy_from: 'supplier',      // supplier | customer — sumber barang
     supplier_id: '',
     customer_id: '',
@@ -50,6 +53,9 @@ const form = ref({
 
 /** Beli dari supplier → status (ordered/pending/done) relevan; beli dari customer → tidak. */
 const buyFromSupplier = computed(() => form.value.buy_from === 'supplier');
+
+// ─── Kasir (wajib dipilih, disimpan ke purchases.user_id) ─────
+const cashierOptions = computed(() => props.cashiers.map((u) => ({ id: u.id, label: u.name })));
 
 // Sumber pembelian — tab di paling atas card checkout.
 const SOURCE_TABS = [
@@ -88,7 +94,11 @@ const searchResults = computed(() => {
     const inCart = new Set(items.value.map(lineKey));
 
     return props.products
-        .filter((p) => p.label.toLowerCase().includes(q) || p.code.toLowerCase().includes(q))
+        .filter((p) =>
+            p.label.toLowerCase().includes(q)
+            || p.sku.toLowerCase().includes(q)
+            || (p.code ?? '').toLowerCase().includes(q),
+        )
         .map((p) => ({ ...p, inCart: inCart.has(lineKey(p)) }));
 });
 
@@ -163,6 +173,7 @@ const saving = ref(false);
 const validate = () => {
     const e = {};
     if (!form.value.date) e.date = 'Tanggal wajib diisi.';
+    if (!form.value.user_id) e.user_id = 'Kasir wajib dipilih.';
     if (buyFromSupplier.value && !selectedSupplier.value) e.supplier_id = 'Supplier wajib dipilih.';
     if (!buyFromSupplier.value && !selectedCustomer.value) e.customer_id = 'Customer wajib dipilih.';
     if (items.value.length === 0) e.items = 'Keranjang masih kosong.';
@@ -176,7 +187,8 @@ const validate = () => {
  * keranjang tidak kosong, dan semua qty minimal 1.
  */
 const canSave = computed(() =>
-    items.value.length > 0
+    !!form.value.user_id
+    && items.value.length > 0
     && (buyFromSupplier.value ? !!selectedSupplier.value : !!selectedCustomer.value)
     && !items.value.some((l) => Number(l.qty || 0) < 1),
 );
@@ -186,6 +198,7 @@ const handleSave = () => {
 
     router.post(route('transaksi.pembelian.store'), {
         date: form.value.date,
+        user_id: form.value.user_id,
         supplier_id: buyFromSupplier.value ? (selectedSupplier.value?.id ?? null) : null,
         customer_id: buyFromSupplier.value ? null : (props.cart.customer_id ?? null),
         buy_from_reference: form.value.buy_from_reference || null,
@@ -513,7 +526,11 @@ watch(() => page.props.flash?.created_item, (created) => {
                     >
                         <div class="flex-1 min-w-0">
                             <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ product.label }}</p>
-                            <p class="text-xs text-gray-400 font-mono">{{ product.code }} · {{ formatRupiah(product.buy_price) }}</p>
+                            <div class="flex flex-wrap items-center gap-1.5">
+                                <span class="rounded-full bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-[10px] font-mono text-gray-500 dark:text-gray-400">{{ product.sku }}</span>
+                                <span v-if="product.code" class="rounded-full bg-orange-100 dark:bg-orange-900/40 px-2 py-0.5 text-[10px] font-mono font-medium text-orange-700 dark:text-orange-300">{{ product.code }}</span>
+                                <span class="text-xs text-gray-400 tabular-nums">{{ formatRupiah(product.buy_price) }}</span>
+                            </div>
                         </div>
                         <AppBadge v-if="product.inCart" color="green" size="sm">Di keranjang</AppBadge>
                         <AppButton variant="outline" size="sm" @click="addToCart(product)">
@@ -635,6 +652,15 @@ watch(() => page.props.flash?.created_item, (created) => {
                             </label>
                             <AppDatePicker v-model="form.date" :error="!!errors.date" />
                             <p v-if="errors.date" class="mt-1.5 text-xs text-red-500">{{ errors.date }}</p>
+                        </div>
+
+                        <!-- Kasir -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                                Kasir <span class="text-red-500">*</span>
+                            </label>
+                            <AppSelect v-model="form.user_id" :options="cashierOptions" placeholder="Pilih kasir..." :error="!!errors.user_id" />
+                            <p v-if="errors.user_id" class="mt-1.5 text-xs text-red-500">{{ errors.user_id }}</p>
                         </div>
 
                         <!-- Sumber pembelian — dari supplier atau dari customer -->
@@ -964,7 +990,11 @@ watch(() => page.props.flash?.created_item, (created) => {
                             class="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
                             <div class="flex-1 min-w-0">
                                 <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ product.label }}</p>
-                                <p class="text-xs text-gray-400 font-mono">{{ product.code }} · {{ formatRupiah(product.buy_price) }}</p>
+                                <div class="flex flex-wrap items-center gap-1.5">
+                                    <span class="rounded-full bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-[10px] font-mono text-gray-500 dark:text-gray-400">{{ product.sku }}</span>
+                                    <span v-if="product.code" class="rounded-full bg-orange-100 dark:bg-orange-900/40 px-2 py-0.5 text-[10px] font-mono font-medium text-orange-700 dark:text-orange-300">{{ product.code }}</span>
+                                    <span class="text-xs text-gray-400 tabular-nums">{{ formatRupiah(product.buy_price) }}</span>
+                                </div>
                             </div>
                             <AppBadge v-if="product.inCart" color="green" size="sm">Di keranjang</AppBadge>
                             <AppButton variant="outline" size="sm" @click="addToCart(product)">
@@ -1057,6 +1087,13 @@ watch(() => page.props.flash?.created_item, (created) => {
                         <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">Tanggal <span class="text-red-500">*</span></label>
                         <AppDatePicker v-model="form.date" :error="!!errors.date" />
                         <p v-if="errors.date" class="mt-1 text-xs text-red-500">{{ errors.date }}</p>
+                    </div>
+
+                    <!-- Kasir -->
+                    <div>
+                        <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">Kasir <span class="text-red-500">*</span></label>
+                        <AppSelect v-model="form.user_id" :options="cashierOptions" placeholder="Pilih kasir..." :error="!!errors.user_id" />
+                        <p v-if="errors.user_id" class="mt-1 text-xs text-red-500">{{ errors.user_id }}</p>
                     </div>
 
                     <!-- Sumber pembelian — dari supplier atau dari customer -->

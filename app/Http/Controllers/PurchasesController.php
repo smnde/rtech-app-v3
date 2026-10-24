@@ -13,6 +13,7 @@ use App\Models\Purchase;
 use App\Models\PurchaseDetail;
 use App\Models\StockMovement;
 use App\Models\Supplier;
+use App\Models\User;
 use App\Support\CashFlowRecorder;
 use App\Support\StockItem;
 use App\Support\StockMovementRecorder;
@@ -68,6 +69,7 @@ class PurchasesController extends Controller
 
         return inertia('Transaksi/PembelianCreate', [
             'products' => $this->purchasableProducts(),
+            'cashiers' => User::query()->orderBy('name')->get(['id', 'name']),
             'suppliers' => Supplier::query()->orderBy('name')->get(['id', 'name', 'name as label', 'phone']),
             'customers' => Customer::query()->orderBy('name')->get(['id', 'name', 'phone', 'is_member']),
             'brands' => Brand::query()->orderBy('name')->get(['id', 'name as label']),
@@ -120,22 +122,24 @@ class PurchasesController extends Controller
     }
 
     /**
-     * @return list<array{item_type: string, id: int, label: string, code: string, buy_price: float}>
+     * @return list<array{item_type: string, id: int, label: string, code: ?string, sku: string, buy_price: float}>
      */
     private function purchasableProducts(): array
     {
         $products = [];
 
         foreach (StockItem::types() as $type => $model) {
+            $hasCode = $type === 'laptop';
             $model::query()
                 ->orderBy('name')
-                ->get(['id', 'name', 'sku', 'buy_price'])
-                ->each(function ($item) use ($type, &$products) {
+                ->get(array_values(array_filter(['id', 'name', 'sku', $hasCode ? 'code' : null, 'buy_price'])))
+                ->each(function ($item) use ($type, $hasCode, &$products) {
                     $products[] = [
                         'item_type' => $type,
                         'id' => $item->id,
                         'label' => $item->name,
-                        'code' => $item->sku,
+                        'code' => $hasCode ? $item->code : null,
+                        'sku' => $item->sku,
                         'buy_price' => (float) $item->buy_price,
                     ];
                 });
@@ -183,7 +187,7 @@ class PurchasesController extends Controller
             $purchase = Purchase::create([
                 'supplier_id' => $data['supplier_id'] ?? null,
                 'customer_id' => $data['customer_id'] ?? null,
-                'user_id' => $request->user()->id,
+                'user_id' => $data['user_id'],
                 'buy_from_reference' => $data['buy_from_reference'] ?? null,
                 'total' => $total,
                 'payment_status' => $data['payment_status'],

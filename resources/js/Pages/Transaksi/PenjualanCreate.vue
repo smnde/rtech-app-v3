@@ -13,9 +13,11 @@ import AppBadge from '@/Components/UI/AppBadge.vue';
 import AppNumberInput from '@/Components/UI/AppNumberInput.vue';
 import AppCurrencyInput from '@/Components/UI/AppCurrencyInput.vue';
 import AppDatePicker from '@/Components/UI/AppDatePicker.vue';
+import AppSelect from '@/Components/UI/AppSelect.vue';
 import CustomerFormModal from '@/Components/Customers/CustomerFormModal.vue';
 const props = defineProps({
     products: { type: Array, default: () => [] },
+    cashiers: { type: Array, default: () => [] },
     customers: { type: Array, default: () => [] },
     cart: { type: Object, required: true },
     heldCarts: { type: Array, default: () => [] },
@@ -27,6 +29,7 @@ const page = usePage();
 // Tanpa PO/Non-PO dan tanpa No. Invoice (invoice dibuat otomatis oleh BE).
 const form = ref({
     date: new Date().toISOString().slice(0, 10),
+    user_id: '',               // kasir yang dipilih (wajib)
     status: 'lunas',           // lunas | hutang | keep
     payment: 'cash',           // cash | tf
     paid_amount: '',
@@ -60,6 +63,9 @@ const detailsOpen = ref(true);
 
 // ─── Customer dari DB (bisa nambah dari modal) ────────────────
 const customers = ref(props.customers.map((c) => ({ ...c })));
+
+// ─── Kasir (wajib dipilih, disimpan ke sales.user_id) ─────────
+const cashierOptions = computed(() => props.cashiers.map((u) => ({ id: u.id, label: u.name })));
 
 // ─── Customer terpilih + picker ───────────────────────────────
 const selectedCustomer = computed(() =>
@@ -147,7 +153,11 @@ const searchResults = computed(() => {
     const inCart = new Set(items.value.map(lineKey));
 
     return props.products
-        .filter((p) => p.label.toLowerCase().includes(q) || p.code.toLowerCase().includes(q))
+        .filter((p) =>
+            p.label.toLowerCase().includes(q)
+            || p.sku.toLowerCase().includes(q)
+            || (p.code ?? '').toLowerCase().includes(q),
+        )
         .map((p) => ({ ...p, inCart: inCart.has(lineKey(p)) }));
 });
 
@@ -233,6 +243,7 @@ const saving = ref(false);
 const validate = () => {
     const e = {};
     if (!form.value.date) e.date = 'Tanggal wajib diisi.';
+    if (!form.value.user_id) e.user_id = 'Kasir wajib dipilih.';
     if (!selectedCustomer.value) e.customer_id = 'Customer wajib dipilih.';
     if (items.value.length === 0) e.items = 'Keranjang masih kosong.';
     if (items.value.some((l) => Number(l.qty || 0) < 1)) e.items = 'Jumlah minimal 1.';
@@ -251,7 +262,8 @@ const remaining = computed(() => {
  * dan semua qty minimal 1. Dipakai untuk menonaktifkan tombol simpan.
  */
 const canSave = computed(() =>
-    !!selectedCustomer.value
+    !!form.value.user_id
+    && !!selectedCustomer.value
     && items.value.length > 0
     && !items.value.some((l) => Number(l.qty || 0) < 1),
 );
@@ -261,6 +273,7 @@ const handleSave = () => {
 
     router.post(route('transaksi.penjualan.store'), {
         date: form.value.date,
+        user_id: form.value.user_id,
         customer_id: props.cart.customer_id ?? null,
         payment_status: form.value.status,
         payment_method: form.value.payment,
@@ -372,7 +385,11 @@ const inputClass = (hasError) => [
                     >
                         <div class="flex-1 min-w-0">
                             <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ product.label }}</p>
-                            <p class="text-xs text-gray-400 font-mono">{{ product.code }} · {{ formatRupiah(product.sell_price) }}</p>
+                            <div class="flex flex-wrap items-center gap-1.5">
+                                <span class="rounded-full bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-[10px] font-mono text-gray-500 dark:text-gray-400">{{ product.sku }}</span>
+                                <span v-if="product.code" class="rounded-full bg-orange-100 dark:bg-orange-900/40 px-2 py-0.5 text-[10px] font-mono font-medium text-orange-700 dark:text-orange-300">{{ product.code }}</span>
+                                <span class="text-xs text-gray-400 tabular-nums">{{ formatRupiah(product.sell_price) }}</span>
+                            </div>
                             <p v-if="product.spec" class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ product.spec }}</p>
                         </div>
                         <AppBadge v-if="product.inCart" color="green" size="sm">Di keranjang</AppBadge>
@@ -494,6 +511,15 @@ const inputClass = (hasError) => [
                             </label>
                             <AppDatePicker v-model="form.date" :error="!!errors.date" />
                             <p v-if="errors.date" class="mt-1.5 text-xs text-red-500">{{ errors.date }}</p>
+                        </div>
+
+                        <!-- Kasir -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                                Kasir <span class="text-red-500">*</span>
+                            </label>
+                            <AppSelect v-model="form.user_id" :options="cashierOptions" placeholder="Pilih kasir..." :error="!!errors.user_id" />
+                            <p v-if="errors.user_id" class="mt-1.5 text-xs text-red-500">{{ errors.user_id }}</p>
                         </div>
 
                         <!-- Customer -->
@@ -757,7 +783,11 @@ const inputClass = (hasError) => [
                             class="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
                             <div class="flex-1 min-w-0">
                                 <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ product.label }}</p>
-                                <p class="text-xs text-gray-400 font-mono">{{ product.code }} · {{ formatRupiah(product.sell_price) }}</p>
+                                <div class="flex flex-wrap items-center gap-1.5">
+                                    <span class="rounded-full bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-[10px] font-mono text-gray-500 dark:text-gray-400">{{ product.sku }}</span>
+                                    <span v-if="product.code" class="rounded-full bg-orange-100 dark:bg-orange-900/40 px-2 py-0.5 text-[10px] font-mono font-medium text-orange-700 dark:text-orange-300">{{ product.code }}</span>
+                                    <span class="text-xs text-gray-400 tabular-nums">{{ formatRupiah(product.sell_price) }}</span>
+                                </div>
                                 <p v-if="product.spec" class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ product.spec }}</p>
                             </div>
                             <AppBadge v-if="product.inCart" color="green" size="sm">Di keranjang</AppBadge>
@@ -849,6 +879,13 @@ const inputClass = (hasError) => [
                         <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">Tanggal <span class="text-red-500">*</span></label>
                         <AppDatePicker v-model="form.date" :error="!!errors.date" />
                         <p v-if="errors.date" class="mt-1 text-xs text-red-500">{{ errors.date }}</p>
+                    </div>
+
+                    <!-- Kasir -->
+                    <div>
+                        <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">Kasir <span class="text-red-500">*</span></label>
+                        <AppSelect v-model="form.user_id" :options="cashierOptions" placeholder="Pilih kasir..." :error="!!errors.user_id" />
+                        <p v-if="errors.user_id" class="mt-1 text-xs text-red-500">{{ errors.user_id }}</p>
                     </div>
 
                     <!-- Customer -->

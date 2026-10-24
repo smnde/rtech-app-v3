@@ -21,6 +21,7 @@ class StoreSaleRequest extends FormRequest
     {
         return [
             'date' => ['nullable', 'date'],
+            'user_id' => ['required', 'integer', 'exists:users,id'],
             'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
             'payment_status' => ['required', Rule::in(['lunas', 'hutang', 'keep'])],
             'payment_method' => ['required', Rule::in(['cash', 'tf'])],
@@ -44,6 +45,7 @@ class StoreSaleRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'user_id.required' => 'Kasir wajib dipilih.',
             'dp_amount.required_if' => 'DP wajib diisi untuk status keep.',
             'paid_at.required_if' => 'Tanggal pelunasan wajib diisi untuk status keep.',
         ];

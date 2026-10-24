@@ -10,6 +10,7 @@ use App\Models\Customer;
 use App\Models\Sale;
 use App\Models\SalesDetail;
 use App\Models\StockMovement;
+use App\Models\User;
 use App\Support\CashFlowRecorder;
 use App\Support\StockItem;
 use App\Support\StockMovementRecorder;
@@ -64,6 +65,7 @@ class SalesController extends Controller
 
         return inertia('Transaksi/PenjualanCreate', [
             'products' => $this->sellableProducts(),
+            'cashiers' => User::query()->orderBy('name')->get(['id', 'name']),
             'customers' => Customer::query()->orderBy('name')->get(['id', 'name', 'phone', 'is_member']),
             'cart' => new CartResource($cart),
             'heldCarts' => CartResource::collection($heldCarts),
@@ -126,7 +128,7 @@ class SalesController extends Controller
     }
 
     /**
-     * @return list<array{item_type: string, id: int, label: string, code: string, sell_price: float, spec: ?string}>
+     * @return list<array{item_type: string, id: int, label: string, code: ?string, sku: string, sell_price: float, spec: ?string}>
      */
     private function sellableProducts(): array
     {
@@ -134,18 +136,20 @@ class SalesController extends Controller
 
         foreach (StockItem::types() as $type => $model) {
             $hasSpecification = in_array($type, ['laptop', 'gadget'], true);
+            $hasCode = $type === 'laptop';
             $model::query()
                 ->where('stock', '>', 0)
                 ->where('sell_price', '>', 0)
                 ->when($type === 'laptop', fn ($query) => $query->whereIn('status', ['SIAP JUAL', 'DISPLAY']))
                 ->orderBy('name')
-                ->get(array_filter(['id', 'name', 'sku', 'sell_price', $hasSpecification ? 'specification' : null]))
-                ->each(function ($item) use ($type, $hasSpecification, &$products) {
+                ->get(array_values(array_filter(['id', 'name', 'sku', $hasCode ? 'code' : null, 'sell_price', $hasSpecification ? 'specification' : null])))
+                ->each(function ($item) use ($type, $hasSpecification, $hasCode, &$products) {
                     $products[] = [
                         'item_type' => $type,
                         'id' => $item->id,
                         'label' => $item->name,
-                        'code' => $item->sku,
+                        'code' => $hasCode ? $item->code : null,
+                        'sku' => $item->sku,
                         'sell_price' => (float) $item->sell_price,
                         'spec' => $hasSpecification ? $this->shortSpec($item->specification) : null,
                     ];
@@ -205,7 +209,7 @@ class SalesController extends Controller
 
             $sale = Sale::create([
                 'customer_id' => $data['customer_id'] ?? null,
-                'user_id' => $request->user()->id,
+                'user_id' => $data['user_id'],
                 'subtotal' => $subtotal,
                 'discount' => $discount,
                 'header_discount' => $headerDiscount,

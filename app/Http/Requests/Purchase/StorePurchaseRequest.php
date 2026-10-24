@@ -21,6 +21,7 @@ class StorePurchaseRequest extends FormRequest
     {
         return [
             'date' => ['nullable', 'date'],
+            'user_id' => ['required', 'integer', 'exists:users,id'],
             'supplier_id' => ['nullable', 'integer', 'exists:suppliers,id'],
             'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
             'buy_from_reference' => ['nullable', 'string', 'max:255'],
@@ -33,6 +34,16 @@ class StorePurchaseRequest extends FormRequest
             'items.*.item_id' => ['required', 'integer'],
             'items.*.qty' => ['required', 'integer', 'min:1'],
             'items.*.price' => ['required', 'numeric', 'min:0'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'user_id.required' => 'Kasir wajib dipilih.',
         ];
     }
 }
