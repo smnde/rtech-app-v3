@@ -13,8 +13,14 @@ import ReceiptModal from '@/Components/Cart/ReceiptModal.vue';
 const { can } = usePermission();
 const confirm = useConfirm();
 
-const markPaid = () => {
-    if (!confirm('Tandai penjualan sebagai Lunas?')) return;
+const markPaid = async () => {
+    const ok = await confirm.confirm({
+        title: 'Tandai Lunas',
+        message: 'Tandai penjualan sebagai Lunas?',
+        confirmLabel: 'Lunas',
+        variant: 'primary',
+    });
+    if (!ok) return;
     router.post(route('transaksi.penjualan.lunas', props.sale.id), {}, {
         preserveScroll: true,
     });
@@ -38,6 +44,15 @@ const props = defineProps({
 
 const store = computed(() => usePage().props.store ?? {});
 const receiptOpen = ref(new URLSearchParams(window.location.search).has('print'));
+
+/** Penjualan keep punya DP — tetap terdeteksi walau statusnya sudah lunas. */
+const isDpSale = computed(() => props.sale.dp_amount !== null);
+const isDpPaid = computed(() => props.sale.payment_status === 'lunas');
+
+/** Tanggal transaksi di nota: keep yang sudah lunas memakai tanggal pelunasan. */
+const transactionDate = computed(() => (isDpSale.value && isDpPaid.value
+    ? (props.sale.paid_at ?? props.sale.date)
+    : props.sale.date));
 
 const statusColor = { lunas: 'green', hutang: 'yellow', keep: 'purple' };
 const paymentMethodLabel = { cash: 'Cash', tf: 'Transfer' };
@@ -69,7 +84,7 @@ const labelClass = 'text-xs text-gray-500 dark:text-gray-500 mb-1';
 
 const receiptSale = computed(() => ({
     invoice_no: props.sale.invoice,
-    created_at: props.sale.date,
+    created_at: transactionDate.value,
     user: props.sale.cashier ? { name: props.sale.cashier } : null,
     customer: props.sale.customer,
     payment_status: props.sale.payment_status,
@@ -103,7 +118,7 @@ const receiptMessage = computed(() => {
         `*${storeName}*`,
         '',
         `*NOTA PENJUALAN* ${s.invoice}`,
-        formatDateTime(s.date),
+        formatDateTime(transactionDate.value),
         `Customer: ${s.customer?.name ?? 'Umum'}`,
         `Kasir: ${s.cashier ?? '-'}`,
         '',
@@ -191,7 +206,7 @@ const waPhone = computed(() => props.sale.customer?.phone ?? '');
                             <p v-else class="text-sm text-gray-900 dark:text-white">Tanpa customer</p>
                         </div>
                         <div>
-                            <p :class="labelClass">Tanggal</p>
+                            <p :class="labelClass">{{ isDpSale ? 'Tanggal DP' : 'Tanggal' }}</p>
                             <p class="text-sm text-gray-900 dark:text-white">{{ formatDateTime(sale.date) }}</p>
                         </div>
                         <div>
@@ -202,13 +217,13 @@ const waPhone = computed(() => props.sale.customer?.phone ?? '');
                             <p :class="labelClass">Pembayaran</p>
                             <p class="text-sm text-gray-900 dark:text-white">{{ paymentMethodLabel[sale.payment_method] ?? '—' }}</p>
                         </div>
-                        <div v-if="sale.payment_status === 'keep'">
-                            <p :class="labelClass">Dibayar</p>
-                            <p class="text-sm text-gray-900 dark:text-white">{{ formatDateTime(sale.paid_at) }}</p>
-                        </div>
-                        <div v-if="sale.payment_status === 'keep'">
+                        <div v-if="isDpSale">
                             <p :class="labelClass">DP</p>
                             <p class="text-sm tabular-nums text-gray-900 dark:text-white">{{ rupiah(sale.dp_amount) }}</p>
+                        </div>
+                        <div v-if="isDpSale">
+                            <p :class="labelClass">{{ isDpPaid ? 'Pelunasan' : 'Jatuh Tempo' }}</p>
+                            <p class="text-sm text-gray-900 dark:text-white">{{ formatDateTime(sale.paid_at) }}</p>
                         </div>
                     </div>
 
