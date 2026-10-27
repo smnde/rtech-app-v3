@@ -33,13 +33,17 @@ class PurchasesController extends Controller
         $from = $request->filled('from') ? $request->string('from')->toString() : $today;
         $to = $request->filled('to') ? $request->string('to')->toString() : $today;
 
+        // Status hutang menampilkan semua pembelian belum lunas, tanpa batas tanggal.
+        $filterByDate = $request->string('status')->toString() !== 'hutang';
+
         $purchases = Purchase::query()
             ->with(['supplier:id,name', 'customer:id,name'])
             ->when($request->search, fn ($query, $search) => $query->where('invoice', 'like', "%{$search}%"))
             ->when($request->filled('status'), fn ($query) => $query->where('payment_status', $request->string('status')))
             ->when($request->filled('order_status'), fn ($query) => $query->where('status', $request->string('order_status')))
-            ->where('created_at', '>=', "{$from} 00:00:00")
-            ->where('created_at', '<=', "{$to} 23:59:59")
+            ->when($filterByDate, fn ($query) => $query
+                ->where('created_at', '>=', "{$from} 00:00:00")
+                ->where('created_at', '<=', "{$to} 23:59:59"))
             ->latest()
             ->paginate(10)
             ->withQueryString();

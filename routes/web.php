@@ -68,6 +68,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // === Data Stok ===
     Route::prefix('stock')->name('stock.')->group(function () {
         Route::get('/laptop', [LaptopsController::class, 'index'])->middleware('permission:show laptop')->name('laptop');
+        Route::get('/laptop/report/export', [LaptopsController::class, 'exportReport'])->middleware('permission:show laptop')->name('laptop.export');
         Route::get('/laptop/{laptop}', [LaptopsController::class, 'show'])->middleware('permission:show laptop')->name('laptop.show');
         Route::post('/laptop', [LaptopsController::class, 'store'])->middleware('permission:add laptop')->name('laptop.store');
         Route::put('/laptop/{laptop}', [LaptopsController::class, 'update'])->middleware('permission:edit laptop')->name('laptop.update');

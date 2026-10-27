@@ -6,6 +6,7 @@ use App\Http\Requests\Sale\StoreSaleRequest;
 use App\Http\Resources\CartResource;
 use App\Http\Resources\SalesResource;
 use App\Models\Cart;
+use App\Models\CashFlow;
 use App\Models\Customer;
 use App\Models\Sale;
 use App\Models\SalesDetail;
@@ -31,12 +32,16 @@ class SalesController extends Controller
         $from = $request->filled('from') ? $request->string('from')->toString() : $today;
         $to = $request->filled('to') ? $request->string('to')->toString() : $today;
 
+        // Status hutang/keep menampilkan semua transaksi belum lunas, tanpa batas tanggal.
+        $filterByDate = ! in_array($request->string('status')->toString(), ['hutang', 'keep'], true);
+
         $sales = Sale::query()
             ->with('customer:id,name')
             ->when($request->search, fn ($query, $search) => $query->where('invoice', 'like', "%{$search}%"))
             ->when($request->filled('status'), fn ($query) => $query->where('payment_status', $request->string('status')))
-            ->where('created_at', '>=', "{$from} 00:00:00")
-            ->where('created_at', '<=', "{$to} 23:59:59")
+            ->when($filterByDate, fn ($query) => $query
+                ->where('created_at', '>=', "{$from} 00:00:00")
+                ->where('created_at', '<=', "{$to} 23:59:59"))
             ->latest()
             ->paginate(10)
             ->withQueryString();
@@ -77,6 +82,7 @@ class SalesController extends Controller
         $sale->load(['user:id,name', 'customer:id,name,phone,is_member', 'details.item']);
 
         return inertia('Transaksi/PenjualanDetail', [
+            'cashiers' => User::query()->orderBy('name')->get(['id', 'name']),
             'sale' => [
                 'id' => $sale->id,
                 'invoice' => $sale->invoice,
@@ -281,10 +287,29 @@ class SalesController extends Controller
             return back()->with('error', 'Status penjualan tidak perlu dilunasi.');
         }
 
+        $data = $request->validate([
+            'user_id' => ['nullable', 'integer', 'exists:users,id'],
+        ]);
+
+        $cashier = filled($data['user_id'] ?? null)
+            ? User::query()->findOrFail($data['user_id'])
+            : $request->user();
         $wasKeep = $sale->payment_status === 'keep';
 
-        DB::transaction(function () use ($sale, $request, $wasKeep) {
-            $sale->update(['payment_status' => 'lunas', 'paid_at' => now()]);
+        // Sisa yang belum tercatat di kas: DP keep sudah masuk, hutang sudah tercatat penuh saat simpan.
+        $alreadyRecorded = (float) CashFlow::query()
+            ->where('reference', $sale->invoice)
+            ->where('type', 'in')
+            ->sum('amount');
+        $outstanding = max(0, (float) $sale->total - $alreadyRecorded);
+
+        DB::transaction(function () use ($sale, $cashier, $wasKeep, $outstanding) {
+            // Kasir pelunasan menggantikan kasir saat transaksi/DP dibuat.
+            $sale->update([
+                'payment_status' => 'lunas',
+                'paid_at' => now(),
+                'user_id' => $cashier->id,
+            ]);
 
             // keep = pelunasan custom → jalankan mutasi keluar saat dilunasi.
             if ($wasKeep) {
@@ -294,11 +319,21 @@ class SalesController extends Controller
                         'qty' => (int) $detail->qty,
                         'is_bonus' => (float) $detail->price <= 0,
                     ])->all(),
-                    $sale->payment_status === 'hutang' ? 'HUTANG' : 'TERJUAL',
-                    $request->user(),
+                    'TERJUAL',
+                    $cashier,
                     $sale->invoice,
                 );
             }
+
+            CashFlowRecorder::record(
+                'in',
+                CashFlowRecorder::SALE_CATEGORY,
+                "Pelunasan {$sale->invoice}",
+                $outstanding,
+                $sale,
+                $cashier,
+                $sale->invoice,
+            );
         });
 
         return redirect()->route('transaksi.penjualan.show', $sale)->with('success', 'Penjualan sudah dilunasi.');

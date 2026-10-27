@@ -48,13 +48,16 @@ class StockMovementsController extends Controller
             ]),
             'items' => collect(StockItem::types())->flatMap(
                 fn (string $modelClass, string $type) => $modelClass::query()
-                    ->select('id', 'name', 'sku', 'stock')
+                    ->select(array_values(array_filter(['id', 'name', 'sku', 'stock', $type === 'laptop' ? 'code' : null])))
                     ->get()
                     ->map(fn (Model $item) => [
                         'key' => "{$type}:{$item->id}",
                         'item_type' => $type,
                         'item_id' => $item->id,
                         'label' => "{$item->name} ({$item->sku})",
+                        'name' => $item->name,
+                        'sku' => $item->sku,
+                        'code' => $type === 'laptop' ? $item->code : null,
                         'stock' => $item->stock,
                     ]),
             )->values(),

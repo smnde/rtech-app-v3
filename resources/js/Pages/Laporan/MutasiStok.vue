@@ -19,10 +19,10 @@ const stats = computed(() => [
 const columns = [
     { key: 'date',         label: 'Tanggal' },
     { key: 'item_name',    label: 'Item' },
-    { key: 'type',         label: 'Tipe' },
-    { key: 'status',       label: 'Status' },
+    { key: 'type',         label: 'Tipe', format: (row) => TYPE_LABEL[row.type] ?? row.type },
+    { key: 'status',       label: 'Status', format: (row) => STATUS_LABEL[row.status] ?? row.status },
     { key: 'quantity',     label: 'Qty' },
-    { key: 'stock',        label: 'Stok' },
+    { key: 'stock',        label: 'Stok', format: (row) => `${row.stock_before} -> ${row.stock_after}` },
     { key: 'reference',    label: 'Referensi' },
     { key: 'user_name',    label: 'Oleh' },
 ];
@@ -43,6 +43,7 @@ const STATUS_LABEL = { PEMBELIAN: 'Pembelian', REFUND: 'Refund', TERJUAL: 'Terju
         :columns="columns"
         :rows="rows"
         :stats="stats"
+        export-pdf
     >
         <template #cell-type="{ value }">
             <AppBadge :color="TYPE_COLOR[value] ?? 'gray'" size="sm" dot>{{ TYPE_LABEL[value] ?? value }}</AppBadge>

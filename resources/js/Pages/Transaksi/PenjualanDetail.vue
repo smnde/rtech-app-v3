@@ -6,6 +6,8 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 import AppBadge from '@/Components/UI/AppBadge.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
 import AppConfirmModal from '@/Components/UI/AppConfirmModal.vue';
+import AppModal from '@/Components/UI/AppModal.vue';
+import AppSelect from '@/Components/UI/AppSelect.vue';
 import { usePermission } from '@/composables/usePermission';
 import { useConfirm } from '@/composables/useConfirm';
 import ReceiptModal from '@/Components/Cart/ReceiptModal.vue';
@@ -13,16 +15,45 @@ import ReceiptModal from '@/Components/Cart/ReceiptModal.vue';
 const { can } = usePermission();
 const confirm = useConfirm();
 
-const markPaid = async () => {
-    const ok = await confirm.confirm({
-        title: 'Tandai Lunas',
-        message: 'Tandai penjualan sebagai Lunas?',
-        confirmLabel: 'Lunas',
-        variant: 'primary',
-    });
-    if (!ok) return;
-    router.post(route('transaksi.penjualan.lunas', props.sale.id), {}, {
+const props = defineProps({
+    sale: { type: Object, required: true },
+    cashiers: { type: Array, default: () => [] },
+});
+
+const store = computed(() => usePage().props.store ?? {});
+const receiptOpen = ref(new URLSearchParams(window.location.search).has('print'));
+
+const payOpen = ref(false);
+const payCashier = ref('');
+const paySaving = ref(false);
+
+const cashierOptions = computed(() => props.cashiers.map((user) => ({ id: user.id, label: user.name })));
+
+/** Sisa yang harus dilunasi: total dikurangi DP (kalau ada). */
+const outstanding = computed(() => Math.max(
+    0,
+    Number(props.sale.total ?? 0) - Number(props.sale.dp_amount ?? 0),
+));
+
+const openPayModal = () => {
+    payCashier.value = '';
+    payOpen.value = true;
+};
+
+const closePayModal = () => {
+    if (paySaving.value) return;
+    payOpen.value = false;
+};
+
+const submitPay = () => {
+    if (!payCashier.value) return;
+    paySaving.value = true;
+    router.post(route('transaksi.penjualan.lunas', props.sale.id), {
+        user_id: payCashier.value,
+    }, {
         preserveScroll: true,
+        onSuccess: () => { payOpen.value = false; },
+        onFinish: () => { paySaving.value = false; },
     });
 };
 
@@ -37,13 +68,6 @@ const deleteSale = async () => {
         preserveScroll: true,
     });
 };
-
-const props = defineProps({
-    sale: { type: Object, required: true },
-});
-
-const store = computed(() => usePage().props.store ?? {});
-const receiptOpen = ref(new URLSearchParams(window.location.search).has('print'));
 
 /** Penjualan keep punya DP — tetap terdeteksi walau statusnya sudah lunas. */
 const isDpSale = computed(() => props.sale.dp_amount !== null);
@@ -158,7 +182,7 @@ const waPhone = computed(() => props.sale.customer?.phone ?? '');
                 <div class="flex items-center gap-2">
                     <AppButton
                         v-if="['keep', 'hutang'].includes(sale.payment_status) && can('edit sale')"
-                        variant="primary" size="sm" @click="markPaid"
+                        variant="primary" size="sm" @click="openPayModal"
                     >
                         <CheckCircle2 class="h-4 w-4" />
                         Tandai Lunas
@@ -311,6 +335,29 @@ const waPhone = computed(() => props.sale.customer?.phone ?? '');
         <ReceiptModal :show="receiptOpen" :store="store" :sale="receiptSale"
             :phone="waPhone" :wa-text="receiptMessage"
             title="NOTA PENJUALAN" @close="receiptOpen = false" />
+
+        <AppModal :show="payOpen" title="Konfirmasi Pelunasan" size="sm" @close="closePayModal">
+            <div class="space-y-4">
+                <div class="rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 p-4">
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Nominal pelunasan</p>
+                    <p class="mt-1 text-2xl font-bold tabular-nums text-gray-900 dark:text-white">{{ rupiah(outstanding) }}</p>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+                        Total {{ rupiah(sale.total) }}
+                        <template v-if="sale.dp_amount"> · DP {{ rupiah(sale.dp_amount) }}</template>
+                    </p>
+                </div>
+                <div>
+                    <label :class="labelClass">Kasir pelunasan <span class="text-red-500">*</span></label>
+                    <AppSelect v-model="payCashier" :options="cashierOptions" placeholder="Pilih kasir..." />
+                    <p class="mt-1 text-xs text-gray-400">Kasir transaksi akan diganti dengan kasir yang melunasi.</p>
+                </div>
+            </div>
+
+            <template #footer>
+                <AppButton variant="secondary" size="sm" @click="closePayModal">Batal</AppButton>
+                <AppButton variant="primary" size="sm" :loading="paySaving" :disabled="!payCashier" @click="submitPay">Lunas</AppButton>
+            </template>
+        </AppModal>
 
         <AppConfirmModal />
     </AppLayout>

@@ -2,7 +2,7 @@
 import { usePermission } from '@/composables/usePermission';
 import { ref, computed, watch } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Plus, Search, Pencil, Trash2, Laptop, X, Printer, Eye } from 'lucide-vue-next';
+import { Plus, Search, Pencil, Trash2, Laptop, X, Printer, Eye, FileDown } from 'lucide-vue-next';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import AppPageHeader from '@/Components/UI/AppPageHeader.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
@@ -12,6 +12,7 @@ import AppTable from '@/Components/UI/AppTable.vue';
 import AppSelect from '@/Components/UI/AppSelect.vue';
 import AppDropdown from '@/Components/UI/AppDropdown.vue';
 import AppActionDrawer from '@/Components/UI/AppActionDrawer.vue';
+import AppModal from '@/Components/UI/AppModal.vue';
 import LaptopFormModal from '@/Components/Laptops/LaptopFormModal.vue';
 import { useToast } from '@/composables/useToast';
 import { useStockFilter } from '@/composables/useStockFilter';
@@ -84,6 +85,42 @@ const { addItemToPriceTag } = useItemPriceTag();
 const printPriceTag = (item) => {
     addItemToPriceTag(item);
     toast.success(`${item.name} ditambahkan ke Price Tag.`);
+};
+
+// Export laporan laptop (lokal / supplier) dalam bentuk PDF.
+const exportOpen       = ref(false);
+const exportJenis      = ref('lokal');
+const exportLocalStatus = ref('jual_display');
+const exportSupplierStock = ref('all');
+
+const exportStatusOptions = [
+    { id: 'jual_display', label: 'SIAP JUAL & DISPLAY' },
+    { id: 'on_process',   label: 'ON PROSES' },
+    { id: 'pending',      label: 'PENDING' },
+    { id: 'kendala',      label: 'KENDALA' },
+    { id: 'habis',        label: 'HABIS' },
+];
+
+const exportSupplierStockOptions = [
+    { id: 'all',       label: 'Semua' },
+    { id: 'available', label: 'Masih ada stok' },
+    { id: 'empty',     label: 'Stok habis' },
+];
+
+const openExport = () => {
+    exportJenis.value = 'lokal';
+    exportLocalStatus.value = 'jual_display';
+    exportSupplierStock.value = 'all';
+    exportOpen.value = true;
+};
+
+const doExport = () => {
+    const params = exportJenis.value === 'supplier'
+        ? { jenis: 'supplier', stock: exportSupplierStock.value }
+        : { jenis: 'lokal', status: exportLocalStatus.value };
+
+    window.open(route('stock.laptop.export', params), '_blank', 'noopener');
+    exportOpen.value = false;
 };
 
 const handleDelete = async (item) => {
@@ -247,6 +284,10 @@ const getDrawerActions = (item) => {
                 <div class="w-full sm:w-56">
                     <AppSortToggle :model-value="filterForm.sort" @update:model-value="filterForm.sort = $event" />
                 </div>
+                <AppButton variant="outline" size="md" @click="openExport">
+                    <FileDown class="h-4 w-4" />
+                    Export
+                </AppButton>
                 <AppButton v-if="hasActiveFilter" variant="ghost" size="sm" @click="resetFilter">
                     <X class="h-4 w-4" />
                     Reset filter
@@ -365,4 +406,41 @@ const getDrawerActions = (item) => {
         :actions="actionDrawerItem ? getDrawerActions(actionDrawerItem) : []"
         @close="closeActionDrawer"
     />
+
+    <!-- Export Laporan -->
+    <AppModal :show="exportOpen" title="Export Laporan Laptop" size="md" @close="exportOpen = false">
+        <div class="space-y-4">
+            <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Jenis</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <button
+                        v-for="option in [{ id: 'lokal', label: 'Laptop Lokal' }, { id: 'supplier', label: 'Laptop Supplier' }]"
+                        :key="option.id"
+                        type="button"
+                        class="rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors"
+                        :class="exportJenis === option.id
+                            ? 'border-primary-600 bg-primary-600 text-white'
+                            : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'"
+                        @click="exportJenis = option.id"
+                    >
+                        {{ option.label }}
+                    </button>
+                </div>
+            </div>
+
+            <div v-if="exportJenis === 'lokal'">
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
+                <AppDropdown v-model="exportLocalStatus" :options="exportStatusOptions" placeholder="Pilih status" />
+            </div>
+            <div v-else>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Stok</label>
+                <AppDropdown v-model="exportSupplierStock" :options="exportSupplierStockOptions" placeholder="Pilih stok" />
+            </div>
+        </div>
+
+        <template #footer>
+            <AppButton variant="secondary" size="sm" @click="exportOpen = false">Batal</AppButton>
+            <AppButton variant="primary" size="sm" @click="doExport">Export</AppButton>
+        </template>
+    </AppModal>
 </template>

@@ -87,8 +87,9 @@ const exportToPdf = async () => {
     props.rows.slice(0, 60).forEach((row) => {
         props.columns.forEach((col, i) => {
             const x = margin + i * colWidth;
-            let val = row[col.key];
+            let val = col.format ? col.format(row) : row[col.key];
             if (col.key === 'subtotal' || col.key === 'total') val = formatRupiah(val);
+            if (col.key === 'date' && val) val = formatDateTime(val);
             if (val == null || val === '') val = '-';
             const text = String(val);
             const truncated = text.length > Math.floor(colWidth / 5.5) ? text.slice(0, Math.floor(colWidth / 5.5)) + '…' : text;

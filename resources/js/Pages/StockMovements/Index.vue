@@ -129,7 +129,11 @@ const selectedItem = ref(null);
 const itemResults = computed(() => {
     const q = itemSearch.value.trim().toLowerCase();
     if (!q) return [];
-    return props.items.filter((item) => item.label.toLowerCase().includes(q));
+    return props.items.filter((item) =>
+        item.name.toLowerCase().includes(q)
+        || (item.sku ?? '').toLowerCase().includes(q)
+        || (item.code ?? '').toLowerCase().includes(q),
+    );
 });
 
 const selectItem = (option) => {
@@ -445,8 +449,16 @@ const getDrawerActions = (movement) => {
                     <label :class="labelClass">Item <span class="text-red-500">*</span></label>
                     <div v-if="selectedItem" class="flex items-center gap-3 rounded-xl border border-primary-300 dark:border-primary-700 bg-primary-50/60 dark:bg-primary-900/20 px-4 py-3">
                         <div class="min-w-0 flex-1">
-                            <p class="truncate text-sm font-medium text-gray-900 dark:text-white">{{ selectedItem.label }}</p>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 tabular-nums">Stok saat ini: {{ selectedItem.stock }}</p>
+                            <p class="truncate text-sm font-medium text-gray-900 dark:text-white">{{ selectedItem.name }}</p>
+                            <div class="mt-0.5 flex items-center gap-1.5 text-[10px] text-gray-500 dark:text-gray-400">
+                                <span class="font-mono truncate">{{ selectedItem.sku }}</span>
+                                <span>·</span>
+                                <span class="tabular-nums">Stok {{ selectedItem.stock }}</span>
+                                <template v-if="selectedItem.code">
+                                    <span>·</span>
+                                    <span class="rounded-full bg-orange-100 dark:bg-orange-900/40 px-1.5 py-0.5 font-mono font-medium text-orange-700 dark:text-orange-300">{{ selectedItem.code }}</span>
+                                </template>
+                            </div>
                         </div>
                         <button type="button" @click="clearItem"
                             class="shrink-0 rounded-lg p-1.5 text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
@@ -459,7 +471,7 @@ const getDrawerActions = (movement) => {
                         <input
                             v-model="itemSearch"
                             type="text"
-                            placeholder="Cari nama atau SKU item..."
+                            placeholder="Cari nama, SKU, atau kode item..."
                             @focus="itemOpen = true"
                             @blur="() => setTimeout(() => itemOpen = false, 150)"
                             :class="[inputClass(!!errors.item), 'pl-9']"
@@ -470,8 +482,16 @@ const getDrawerActions = (movement) => {
                                 @mousedown.prevent @click="selectItem(option)"
                                 class="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors">
                                 <div class="min-w-0 flex-1">
-                                    <p class="truncate text-sm font-medium text-gray-900 dark:text-white">{{ option.label }}</p>
-                                    <p class="text-xs text-gray-500 dark:text-gray-400 tabular-nums">Stok: {{ option.stock }}</p>
+                                    <p class="truncate text-sm font-medium text-gray-900 dark:text-white">{{ option.name }}</p>
+                                    <div class="mt-0.5 flex items-center gap-1.5 text-[10px] text-gray-500 dark:text-gray-400">
+                                        <span class="font-mono truncate">{{ option.sku }}</span>
+                                        <span>·</span>
+                                        <span class="tabular-nums">Stok {{ option.stock }}</span>
+                                        <template v-if="option.code">
+                                            <span>·</span>
+                                            <span class="rounded-full bg-orange-100 dark:bg-orange-900/40 px-1.5 py-0.5 font-mono font-medium text-orange-700 dark:text-orange-300">{{ option.code }}</span>
+                                        </template>
+                                    </div>
                                 </div>
                             </button>
                             <div v-if="itemResults.length === 0" class="px-3 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
