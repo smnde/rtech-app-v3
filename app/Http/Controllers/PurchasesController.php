@@ -46,10 +46,11 @@ class PurchasesController extends Controller
                 ->where('created_at', '<=', "{$to} 23:59:59"))
             ->latest()
             ->paginate(10)
-            ->withQueryString();
+            ->withQueryString()
+            ->through(fn (Purchase $purchase) => (new PurchasesResource($purchase))->resolve());
 
         return inertia('Transaksi/Pembelian', [
-            'purchases' => PurchasesResource::collection($purchases),
+            'purchases' => $purchases,
             'filters' => [
                 'search' => $request->search,
                 'status' => $request->status,

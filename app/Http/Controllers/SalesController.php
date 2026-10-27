@@ -44,10 +44,11 @@ class SalesController extends Controller
                 ->where('created_at', '<=', "{$to} 23:59:59"))
             ->latest()
             ->paginate(10)
-            ->withQueryString();
+            ->withQueryString()
+            ->through(fn (Sale $sale) => (new SalesResource($sale))->resolve());
 
         return inertia('Transaksi/Penjualan', [
-            'sales' => SalesResource::collection($sales),
+            'sales' => $sales,
             'filters' => [
                 'search' => $request->search,
                 'status' => $request->status,
