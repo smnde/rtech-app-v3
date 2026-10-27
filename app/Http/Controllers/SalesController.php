@@ -256,10 +256,12 @@ class SalesController extends Controller
                 CashFlowRecorder::record(
                     'in',
                     'PENJUALAN',
-                    "Penjualan {$sale->invoice}",
+                    $data['payment_status'] === 'keep'
+                        ? "DP {$sale->invoice}"
+                        : "Penjualan {$sale->invoice}",
                     $cashInAmount,
                     $sale,
-                    $request->user(),
+                    $sale->user,
                     $sale->invoice,
                     $trxAt?->toDateString(),
                 );
