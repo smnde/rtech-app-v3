@@ -278,7 +278,7 @@ const handleSave = () => {
         payment_status: form.value.status,
         payment_method: form.value.payment,
         dp_amount: form.value.status === 'keep' ? Number(form.value.paid_amount || 0) : null,
-        paid_at: form.value.status === 'keep' ? (form.value.due_date || null) : null,
+        paid_at: isPartial.value ? (form.value.due_date || null) : null,
         notes: form.value.note || null,
         discount: headerDiscount.value,
         items: items.value.map((l) => ({

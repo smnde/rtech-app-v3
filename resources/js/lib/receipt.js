@@ -27,6 +27,14 @@ function formatDate(d) {
     });
 }
 
+// Tanggal saja — dipakai untuk jatuh tempo pelunasan.
+function formatDay(d) {
+    if (!d) return '';
+    return new Date(String(d).replace(' ', 'T')).toLocaleDateString('id-ID', {
+        day: '2-digit', month: 'short', year: 'numeric',
+    });
+}
+
 // Spek jadi 2 baris tanpa label:
 //   1) CPU + GPU   2) Memory + Storage + Display (+ key lain).
 function specLines(spec) {
@@ -579,6 +587,18 @@ function itemTable(items, { showDiscount }) {
     </table>`;
 }
 
+// Ringkasan diskon: satu baris "Diskon" bila hanya ada satu jenis diskon;
+// dua baris (item + khusus) bila keduanya ada.
+function discountRows(itemDiscount, headerDiscount) {
+    if (itemDiscount > 0 && headerDiscount > 0) {
+        return [['Diskon item', itemDiscount], ['Diskon khusus', headerDiscount]];
+    }
+
+    const total = itemDiscount + headerDiscount;
+
+    return total > 0 ? [['Diskon', total]] : [];
+}
+
 // Isi nota penjualan/pembelian (HTML, untuk Cetak).
 export function saleBody({ store = {}, sale, title = 'NOTA PENJUALAN' }) {
     if (!sale) return '';
@@ -587,22 +607,27 @@ export function saleBody({ store = {}, sale, title = 'NOTA PENJUALAN' }) {
     const isPaid = sale.payment_status ? sale.payment_status === 'lunas' : true;
     const isPurchase = sale.supplier !== undefined;
     const itemDiscount = items.reduce((sum, li) => sum + (Number(li.discount) || 0), 0);
-    const hasDiscount = Number(sale.discount) > 0;
     const headerDiscount = Number(sale.header_discount) || 0;
+    const isUnpaid = !isPurchase && !isPaid;
+    // Selama belum lunas, paid_at berisi tanggal jatuh tempo pelunasan.
+    const dueDate = isUnpaid && sale.paid_at ? formatDay(sale.paid_at) : null;
+    const outstanding = isUnpaid ? Math.max(0, Number(sale.total || 0) - Number(sale.dp_amount || 0)) : 0;
 
-    // Kiri: tanggal → kasir → pembayaran. Kanan: customer/supplier → telepon.
+    // Kiri: tanggal → kasir → pembayaran. Kanan: customer/supplier → telepon → DP/tempo/dibayar.
     const metaLeft = [
         pair('Tanggal', formatDate(sale.created_at)),
         pair('Kasir', sale.user?.name ?? sale.cashier),
         pair('Pembayaran', sale.payment_method),
         pair('No. Nota Supplier', sale.buy_from_reference),
-        pair('Dibayar', sale.paid_at ? formatDate(sale.paid_at) : null),
-        pair('DP', sale.dp_amount ? money(sale.dp_amount) : null),
     ].join('');
 
     const metaRight = [
         pair(isPurchase ? 'Supplier' : 'Customer', sale.customer?.name ?? sale.supplier ?? 'Umum'),
         pair('Telepon', sale.customer?.phone ?? sale.supplier_phone),
+        // DP hanya relevan selama belum lunas.
+        pair('DP', isUnpaid && sale.dp_amount ? money(sale.dp_amount) : null),
+        pair('Jatuh Tempo', dueDate),
+        pair('Dibayar', !isUnpaid && sale.paid_at ? formatDate(sale.paid_at) : null),
     ].join('');
 
     const meta = `<div>${metaLeft}</div><div>${metaRight}</div>`;
@@ -623,10 +648,9 @@ export function saleBody({ store = {}, sale, title = 'NOTA PENJUALAN' }) {
 
         <div class="totals">
             <div class="row"><span>Subtotal</span><span>${money(sale.subtotal)}</span></div>
-            ${itemDiscount > 0 ? `<div class="row"><span>Diskon item</span><span>&minus; ${money(itemDiscount)}</span></div>` : ''}
-            ${hasDiscount ? `<div class="row"><span>Diskon</span><span>&minus; ${money(sale.discount)}</span></div>` : ''}
-            ${headerDiscount > 0 ? `<div class="row"><span>Diskon khusus</span><span>&minus; ${money(headerDiscount)}</span></div>` : ''}
+            ${discountRows(itemDiscount, headerDiscount).map(([label, value]) => `<div class="row"><span>${label}</span><span>&minus; ${money(value)}</span></div>`).join('')}
             <div class="row grand"><span>TOTAL</span><span>${money(sale.total)}</span></div>
+            ${isUnpaid && outstanding > 0 ? `<div class="row"><span>Sisa Hutang</span><span>${money(outstanding)}</span></div>` : ''}
         </div>
 
         ${sale.notes ? `<div class="notes">Catatan: ${esc(sale.notes)}</div>` : ''}
@@ -646,6 +670,10 @@ export async function buildSaleReceiptPdf({ store = {}, sale, title = 'NOTA PENJ
         const isPurchase = sale.supplier !== undefined;
         const itemDiscount = items.reduce((sum, li) => sum + (Number(li.discount) || 0), 0);
         const headerDiscount = Number(sale.header_discount) || 0;
+        const isUnpaid = !isPurchase && !isPaid;
+        // Selama belum lunas, paid_at berisi tanggal jatuh tempo pelunasan.
+        const dueDate = isUnpaid && sale.paid_at ? formatDay(sale.paid_at) : null;
+        const outstanding = isUnpaid ? Math.max(0, Number(sale.total || 0) - Number(sale.dp_amount || 0)) : 0;
 
         let y = drawHead(pdf, {
             store,
@@ -654,19 +682,21 @@ export async function buildSaleReceiptPdf({ store = {}, sale, title = 'NOTA PENJ
             badge: sale.payment_status ? { label: isPaid ? 'LUNAS' : 'BELUM LUNAS', cls: isPaid ? 'badge-paid' : 'badge-due' } : null,
         });
 
-        // Kiri: tanggal → kasir → pembayaran. Kanan: customer/supplier → telepon.
+        // Kiri: tanggal → kasir → pembayaran. Kanan: customer/supplier → telepon → DP/tempo/dibayar.
         y = drawPairs(pdf, [
             [
                 ['Tanggal', formatDate(sale.created_at)],
                 ['Kasir', sale.user?.name ?? sale.cashier ?? '-'],
                 ['Pembayaran', sale.payment_method ?? '-'],
                 ...(sale.buy_from_reference ? [['No. Nota Supplier', sale.buy_from_reference]] : []),
-                ...(sale.paid_at ? [['Dibayar', formatDate(sale.paid_at)]] : []),
-                ...(sale.dp_amount ? [['DP', money(sale.dp_amount)]] : []),
             ].filter(Boolean),
             [
                 [isPurchase ? 'Supplier' : 'Customer', sale.customer?.name ?? sale.supplier ?? 'Umum'],
                 ...((sale.customer?.phone ?? sale.supplier_phone) ? [['Telepon', sale.customer?.phone ?? sale.supplier_phone]] : []),
+                // DP hanya relevan selama belum lunas.
+                ...(isUnpaid && sale.dp_amount ? [['DP', money(sale.dp_amount)]] : []),
+                ...(dueDate ? [['Jatuh Tempo', dueDate]] : []),
+                ...(!isUnpaid && sale.paid_at ? [['Dibayar', formatDate(sale.paid_at)]] : []),
             ].filter(Boolean),
         ], y);
 
@@ -717,10 +747,9 @@ export async function buildSaleReceiptPdf({ store = {}, sale, title = 'NOTA PENJ
 
         const totals = [
             ['Subtotal', money(sale.subtotal)],
-            itemDiscount > 0 ? ['Diskon item', `- ${money(itemDiscount)}`] : null,
-            Number(sale.discount) > 0 ? ['Diskon', `- ${money(sale.discount)}`] : null,
-            headerDiscount > 0 ? ['Diskon khusus', `- ${money(headerDiscount)}`] : null,
+            ...discountRows(itemDiscount, headerDiscount).map(([label, value]) => [label, `- ${money(value)}`]),
             ['TOTAL', money(sale.total), true],
+            ...(isUnpaid && outstanding > 0 ? [['Sisa Hutang', money(outstanding)]] : []),
         ].filter(Boolean);
         y = drawTotals(pdf, totals, y);
 

@@ -73,6 +73,12 @@ const deleteSale = async () => {
 const isDpSale = computed(() => props.sale.dp_amount !== null);
 const isDpPaid = computed(() => props.sale.payment_status === 'lunas');
 
+/** Belum lunas: keep / hutang — sisa & jatuh tempo ditampilkan. */
+const isUnpaid = computed(() => ['keep', 'hutang'].includes(props.sale.payment_status));
+
+/** Tanggal jatuh tempo tersimpan di paid_at selama transaksi belum lunas. */
+const dueDate = computed(() => (isUnpaid.value ? props.sale.paid_at : null));
+
 /** Tanggal transaksi di nota: keep yang sudah lunas memakai tanggal pelunasan. */
 const transactionDate = computed(() => (isDpSale.value && isDpPaid.value
     ? (props.sale.paid_at ?? props.sale.date)
@@ -87,6 +93,10 @@ const rupiah = (value) => (value === null || value === undefined
 
 const formatDateTime = (value) => (value
     ? new Date(value.replace(' ', 'T')).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '—');
+
+const formatDateOnly = (value) => (value
+    ? new Date(String(value).replace(' ', 'T')).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
     : '—');
 
 const expandedItems = ref(new Set());
@@ -151,15 +161,31 @@ const receiptMessage = computed(() => {
         `Subtotal: ${rupiah(s.subtotal)}`,
     ];
 
-    if (Number(s.header_discount) > 0) lines.push(`Diskon: - ${rupiah(s.header_discount)}`);
-    if (Number(itemDiscount.value) > 0) lines.push(`Diskon item: - ${rupiah(itemDiscount.value)}`);
+    const headerDiscount = Number(s.header_discount) || 0;
+
+    if (headerDiscount > 0 && itemDiscount.value > 0) {
+        lines.push(
+            `Diskon item: - ${rupiah(itemDiscount.value)}`,
+            `Diskon khusus: - ${rupiah(headerDiscount)}`,
+        );
+    } else if (headerDiscount + itemDiscount.value > 0) {
+        lines.push(`Diskon: - ${rupiah(headerDiscount + itemDiscount.value)}`);
+    }
 
     lines.push(
         `Total: ${rupiah(s.total)}`,
         `Status: ${s.payment_status === 'lunas' ? 'LUNAS' : 'BELUM LUNAS'}`,
-        '',
-        store.value.footer ?? 'Terima kasih',
     );
+
+    if (isUnpaid.value) {
+        lines.push(`Sisa Hutang: ${rupiah(outstanding.value)}`);
+
+        if (dueDate.value) {
+            lines.push(`Jatuh Tempo: ${formatDateOnly(dueDate.value)}`);
+        }
+    }
+
+    lines.push('', store.value.footer ?? 'Terima kasih');
 
     return lines.join('\n');
 });
@@ -245,9 +271,17 @@ const waPhone = computed(() => props.sale.customer?.phone ?? '');
                             <p :class="labelClass">DP</p>
                             <p class="text-sm tabular-nums text-gray-900 dark:text-white">{{ rupiah(sale.dp_amount) }}</p>
                         </div>
-                        <div v-if="isDpSale">
-                            <p :class="labelClass">{{ isDpPaid ? 'Pelunasan' : 'Jatuh Tempo' }}</p>
+                        <div v-if="isUnpaid && dueDate">
+                            <p :class="labelClass">Jatuh Tempo Pelunasan</p>
+                            <p class="text-sm text-gray-900 dark:text-white">{{ formatDateOnly(dueDate) }}</p>
+                        </div>
+                        <div v-if="isDpSale && isDpPaid">
+                            <p :class="labelClass">Pelunasan</p>
                             <p class="text-sm text-gray-900 dark:text-white">{{ formatDateTime(sale.paid_at) }}</p>
+                        </div>
+                        <div v-if="isUnpaid">
+                            <p :class="labelClass">Sisa Hutang</p>
+                            <p class="text-sm font-semibold tabular-nums text-red-500">{{ rupiah(outstanding) }}</p>
                         </div>
                     </div>
 

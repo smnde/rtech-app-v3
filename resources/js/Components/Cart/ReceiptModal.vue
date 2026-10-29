@@ -26,9 +26,29 @@ const items = computed(() => props.sale?.sale_items || props.sale?.items || []);
 const isPaid = computed(() =>
     props.sale?.payment_status ? props.sale.payment_status === 'lunas' : true
 );
-const isPurchase = computed(() => props.sale?.supplier !== undefined);
-const hasDiscount = computed(() => Number(props.sale?.discount) > 0);
 const itemDiscount = computed(() => items.value.reduce((s, li) => s + (Number(li.discount) || 0), 0));
+const headerDiscount = computed(() => Number(props.sale?.header_discount) || 0);
+const isPurchase = computed(() => props.sale?.supplier !== undefined);
+// Sisa & jatuh tempo hanya untuk nota penjualan yang belum lunas.
+const isUnpaid = computed(() => !isPurchase.value && !!props.sale?.payment_status && props.sale.payment_status !== 'lunas');
+const dueDate = computed(() => (isUnpaid.value && props.sale?.paid_at ? formatDay(props.sale.paid_at) : null));
+const outstanding = computed(() => (isUnpaid.value
+    ? Math.max(0, Number(props.sale?.total ?? 0) - Number(props.sale?.dp_amount ?? 0))
+    : 0));
+
+/** Satu baris "Diskon" bila hanya ada satu jenis diskon; dua baris bila keduanya ada. */
+const discountLines = computed(() => {
+    if (itemDiscount.value > 0 && headerDiscount.value > 0) {
+        return [
+            { label: 'Diskon item', value: itemDiscount.value },
+            { label: 'Diskon khusus', value: headerDiscount.value },
+        ];
+    }
+
+    const total = itemDiscount.value + headerDiscount.value;
+
+    return total > 0 ? [{ label: 'Diskon', value: total }] : [];
+});
 const invoiceNo = computed(() => props.sale?.invoice_no ?? props.sale?.reference_no ?? '');
 const partyLabel = computed(() => (isPurchase.value ? 'Supplier' : 'Customer'));
 const partyName = computed(() => props.sale?.customer?.name ?? props.sale?.supplier ?? 'Umum');
@@ -41,6 +61,14 @@ function formatDate(d) {
     if (!d) return '';
     return new Date(String(d).replace(' ', 'T')).toLocaleString('id-ID', {
         day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    });
+}
+
+// Tanggal saja — dipakai untuk jatuh tempo pelunasan.
+function formatDay(d) {
+    if (!d) return '';
+    return new Date(String(d).replace(' ', 'T')).toLocaleDateString('id-ID', {
+        day: '2-digit', month: 'short', year: 'numeric',
     });
 }
 
@@ -149,20 +177,24 @@ const sendWa = async () => {
                     <div v-if="sale.buy_from_reference" class="flex justify-between gap-4 border-b border-dotted border-slate-200 py-1">
                         <span class="text-slate-500">No. Nota Supplier</span><span class="text-right font-medium">{{ sale.buy_from_reference }}</span>
                     </div>
-                    <div v-if="sale.paid_at" class="flex justify-between gap-4 border-b border-dotted border-slate-200 py-1">
-                        <span class="text-slate-500">Dibayar</span><span class="text-right font-medium">{{ formatDate(sale.paid_at) }}</span>
-                    </div>
-                    <div v-if="sale.dp_amount" class="flex justify-between gap-4 border-b border-dotted border-slate-200 py-1">
-                        <span class="text-slate-500">DP</span><span class="text-right font-medium">{{ money(sale.dp_amount) }}</span>
-                    </div>
                 </div>
-                <!-- Kanan: customer/supplier → telepon -->
+                <!-- Kanan: customer/supplier → telepon → DP/tempo/dibayar -->
                 <div>
                     <div class="flex justify-between gap-4 border-b border-dotted border-slate-200 py-1">
                         <span class="text-slate-500">{{ partyLabel }}</span><span class="text-right font-medium">{{ partyName }}</span>
                     </div>
                     <div v-if="phone2" class="flex justify-between gap-4 border-b border-dotted border-slate-200 py-1">
                         <span class="text-slate-500">Telepon</span><span class="text-right font-medium tabular-nums">{{ phone2 }}</span>
+                    </div>
+                    <!-- DP hanya relevan selama belum lunas. -->
+                    <div v-if="isUnpaid && sale.dp_amount" class="flex justify-between gap-4 border-b border-dotted border-slate-200 py-1">
+                        <span class="text-slate-500">DP</span><span class="text-right font-medium">{{ money(sale.dp_amount) }}</span>
+                    </div>
+                    <div v-if="dueDate" class="flex justify-between gap-4 border-b border-dotted border-slate-200 py-1">
+                        <span class="text-slate-500">Jatuh Tempo</span><span class="text-right font-medium">{{ dueDate }}</span>
+                    </div>
+                    <div v-if="sale.paid_at && !isUnpaid" class="flex justify-between gap-4 border-b border-dotted border-slate-200 py-1">
+                        <span class="text-slate-500">Dibayar</span><span class="text-right font-medium">{{ formatDate(sale.paid_at) }}</span>
                     </div>
                 </div>
             </div>
@@ -196,12 +228,11 @@ const sendWa = async () => {
 
             <div class="ml-auto mt-4 w-52 text-[9.5px]">
                 <div class="flex justify-between py-1"><span class="text-slate-500">Subtotal</span><span>{{ money(sale.subtotal) }}</span></div>
-                <div v-if="itemDiscount > 0" class="flex justify-between py-1"><span class="text-slate-500">Diskon item</span><span>− {{ money(itemDiscount) }}</span></div>
-                <div v-if="hasDiscount" class="flex justify-between py-1"><span class="text-slate-500">Diskon</span><span>− {{ money(sale.discount) }}</span></div>
-                <div v-if="Number(sale.header_discount) > 0" class="flex justify-between py-1"><span class="text-slate-500">Diskon khusus</span><span>− {{ money(sale.header_discount) }}</span></div>
+                <div v-for="line in discountLines" :key="line.label" class="flex justify-between py-1"><span class="text-slate-500">{{ line.label }}</span><span>− {{ money(line.value) }}</span></div>
                 <div class="mt-1 flex justify-between border-t-[1.5px] border-slate-900 pt-2 text-[13px] font-bold text-slate-900">
                     <span>TOTAL</span><span>{{ money(sale.total) }}</span>
                 </div>
+                <div v-if="outstanding > 0" class="flex justify-between py-1 text-red-600"><span>Sisa Hutang</span><span>{{ money(outstanding) }}</span></div>
             </div>
 
             <p v-if="sale.notes" class="mt-4 rounded bg-slate-50 px-3 py-2 text-[9px] whitespace-pre-line text-slate-600">

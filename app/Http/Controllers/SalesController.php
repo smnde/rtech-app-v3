@@ -224,7 +224,8 @@ class SalesController extends Controller
                 'payment_status' => $data['payment_status'],
                 'payment_method' => $data['payment_method'],
                 'dp_amount' => $data['payment_status'] === 'keep' ? $data['dp_amount'] : null,
-                'paid_at' => $data['payment_status'] === 'keep' ? $data['paid_at'] : null,
+                // keep & hutang: paid_at menyimpan tanggal tempo pelunasan sampai transaksi dilunasi.
+                'paid_at' => in_array($data['payment_status'], ['keep', 'hutang'], true) ? ($data['paid_at'] ?? null) : null,
                 'notes' => $data['notes'] ?? null,
             ]);
 
