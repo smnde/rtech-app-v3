@@ -249,6 +249,7 @@ class LaptopsController extends Controller
         $stockFilter = in_array($stockFilter, ['all', 'available', 'empty'], true) ? $stockFilter : 'all';
 
         $laptops = Laptop::query()
+            ->with('supplier')
             ->whereNotNull('supplier_id')
             ->whereNotNull('code')
             ->when($stockFilter === 'available', fn ($query) => $query->where('stock', '>', 0))
@@ -280,7 +281,11 @@ class LaptopsController extends Controller
                 ];
             }
 
-            $groups[] = ['unique_code' => $code, 'items' => $items];
+            $groups[] = [
+                'code' => $code,
+                'supplier_name' => $itemsInGroup->first()->supplier?->name ?? '-',
+                'items' => $items,
+            ];
         }
 
         $stockLabels = [

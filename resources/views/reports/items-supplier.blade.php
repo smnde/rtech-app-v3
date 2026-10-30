@@ -35,14 +35,13 @@
     @else
     <div class="title">Laporan Barang Supplier (Laptop)</div>
     <div class="meta">
-        Dicetak: {{ now('Asia/Jakarta')->format('d M Y, H:i') }} &middot;
-        Oleh: {{ auth()->user()?->name ?? '-' }}
+        Dicetak: {{ now('Asia/Jakarta')->format('d M Y, H:i') }}
         @if(!empty($periode_label))<br/>{{ $periode_label }}@endif
         @if(!empty($stock_label))<br/>{{ $stock_label }}@endif
     </div>
 
     @foreach($groups as $g)
-        <div class="group-head">KODE UNIK: {{ $g['unique_code'] }}</div>
+        <div class="group-head">KODE SUPPLIER: {{ $g['code'] }} &middot; SUPPLIER: {{ $g['supplier_name'] }}</div>
 
         @foreach($g['items'] as $item)
             <div class="item-head">{{ $item['no'] }}. {{ $item['name'] }}</div>
