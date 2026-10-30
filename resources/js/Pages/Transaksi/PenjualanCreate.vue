@@ -42,7 +42,7 @@ const form = ref({
 // Status pembayaran — dipilih lewat tab, bukan dropdown.
 // lunas  : dibayar penuh.
 // hutang : belum dibayar sama sekali.
-// keep   : barang ditahan di toko, pembayaran sebagian / menyusul.
+// keep   : pembayaran sebagian / menyusul, stok tetap langsung berkurang.
 const STATUS_TABS = [
     { id: 'lunas',  label: 'Lunas',  icon: CheckCircle2 },
     { id: 'hutang', label: 'Hutang', icon: Clock },

@@ -15,8 +15,6 @@ use App\Models\User;
 use App\Support\CashFlowRecorder;
 use App\Support\StockItem;
 use App\Support\StockMovementRecorder;
-use Illuminate\Contracts\Auth\Authenticatable;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -241,16 +239,15 @@ class SalesController extends Controller
                 ]);
             }
 
-            if ($data['payment_status'] !== 'keep') {
-                $isDebt = $data['payment_status'] === 'hutang';
+            // Stok langsung berkurang untuk semua status (lunas, keep, hutang).
+            $isDebt = $data['payment_status'] === 'hutang';
 
-                foreach ($movements as [$stockItem, $qty, $isBonus]) {
-                    $stockBefore = $stockItem->stock;
-                    $stockItem->decrement('stock', $qty);
+            foreach ($movements as [$stockItem, $qty, $isBonus]) {
+                $stockBefore = $stockItem->stock;
+                $stockItem->decrement('stock', $qty);
 
-                    $status = $isBonus ? 'BONUS' : ($isDebt ? 'HUTANG' : 'TERJUAL');
-                    StockMovementRecorder::record($stockItem, 'out', $qty, $stockBefore, $status, $request->user(), $sale->invoice, $trxAt?->toDateTimeString());
-                }
+                $status = $isBonus ? 'BONUS' : ($isDebt ? 'HUTANG' : 'TERJUAL');
+                StockMovementRecorder::record($stockItem, 'out', $qty, $stockBefore, $status, $request->user(), $sale->invoice, $trxAt?->toDateTimeString());
             }
 
             $cashInAmount = $data['payment_status'] === 'keep' ? (float) ($data['dp_amount'] ?? 0) : $total;
@@ -298,8 +295,6 @@ class SalesController extends Controller
         $cashier = filled($data['user_id'] ?? null)
             ? User::query()->findOrFail($data['user_id'])
             : $request->user();
-        $wasKeep = $sale->payment_status === 'keep';
-
         // Sisa yang belum tercatat di kas: DP keep sudah masuk, hutang sudah tercatat penuh saat simpan.
         $alreadyRecorded = (float) CashFlow::query()
             ->where('reference', $sale->invoice)
@@ -307,27 +302,13 @@ class SalesController extends Controller
             ->sum('amount');
         $outstanding = max(0, (float) $sale->total - $alreadyRecorded);
 
-        DB::transaction(function () use ($sale, $cashier, $wasKeep, $outstanding) {
+        DB::transaction(function () use ($sale, $cashier, $outstanding) {
             // Kasir pelunasan menggantikan kasir saat transaksi/DP dibuat.
             $sale->update([
                 'payment_status' => 'lunas',
                 'paid_at' => now(),
                 'user_id' => $cashier->id,
             ]);
-
-            // keep = pelunasan custom → jalankan mutasi keluar saat dilunasi.
-            if ($wasKeep) {
-                $this->recordOut(
-                    $sale->details->map(fn ($detail) => [
-                        'stock_item' => $detail->item,
-                        'qty' => (int) $detail->qty,
-                        'is_bonus' => (float) $detail->price <= 0,
-                    ])->all(),
-                    'TERJUAL',
-                    $cashier,
-                    $sale->invoice,
-                );
-            }
 
             CashFlowRecorder::record(
                 'in',
@@ -377,25 +358,5 @@ class SalesController extends Controller
         }
 
         StockMovement::query()->where('reference', $sale->invoice)->delete();
-    }
-
-    /**
-     * @param  list<array{stock_item: Model, qty: int}>  $lines
-     */
-    /**
-     * @param  list<array{stock_item: Model, qty: int, is_bonus?: bool}>  $lines
-     */
-    private function recordOut(array $lines, string $defaultStatus, Authenticatable $user, string $reference): void
-    {
-        foreach ($lines as $line) {
-            $stockItem = $line['stock_item'];
-            $qty = $line['qty'];
-
-            $stockBefore = $stockItem->stock;
-            $stockItem->decrement('stock', $qty);
-
-            $status = ($line['is_bonus'] ?? false) ? 'BONUS' : $defaultStatus;
-            StockMovementRecorder::record($stockItem, 'out', $qty, $stockBefore, $status, $user, $reference);
-        }
     }
 }
