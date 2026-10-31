@@ -6,6 +6,7 @@ use App\Models\Laptop;
 use App\Models\Reparation;
 use App\Models\Sale;
 use App\Models\User;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Database\Seeders\RolePermissionSeeder;
 
 beforeEach(function () {
@@ -65,6 +66,34 @@ test('dashboard lists laptops that need a price and laptops ready to post', func
         ->and($props['needPrice'][0]['id'])->toBe($needPrice->id)
         ->and($props['needPost'])->toHaveCount(1)
         ->and($props['needPost'][0]['id'])->toBe($needPost->id);
+});
+
+test('laptop lokal export orders items by status, brand then name', function () {
+    $lenovo = Brand::create(['name' => 'Lenovo']);
+    $acer = Brand::create(['name' => 'Acer']);
+    $base = ['supplier_id' => null, 'warranty' => '1 tahun', 'stock' => 1, 'sell_price' => 5000];
+
+    Laptop::create([...$base, 'brand_id' => $lenovo->id, 'name' => 'Lenovo B', 'sku' => 'LPT-1', 'status' => 'SIAP JUAL']);
+    Laptop::create([...$base, 'brand_id' => $acer->id, 'name' => 'Acer Z', 'sku' => 'LPT-2', 'status' => 'DISPLAY']);
+    Laptop::create([...$base, 'brand_id' => $acer->id, 'name' => 'Acer A', 'sku' => 'LPT-3', 'status' => 'SIAP JUAL']);
+    Laptop::create([...$base, 'brand_id' => $lenovo->id, 'name' => 'Lenovo A', 'sku' => 'LPT-4', 'status' => 'DISPLAY']);
+    Laptop::create([...$base, 'brand_id' => $acer->id, 'name' => 'Acer B', 'sku' => 'LPT-5', 'status' => 'DISPLAY']);
+
+    Pdf::shouldReceive('loadView')
+        ->once()
+        ->withArgs(function (string $view, array $data) {
+            expect(array_column($data['items'], 'name'))
+                ->toBe(['Acer A', 'Lenovo B', 'Acer B', 'Acer Z', 'Lenovo A']);
+
+            return true;
+        })
+        ->andReturnSelf();
+    Pdf::shouldReceive('setPaper')->andReturnSelf();
+    Pdf::shouldReceive('download')->andReturn(response('pdf'));
+
+    $this->actingAs($this->user)
+        ->get('/stock/laptop/report/export?jenis=lokal&status=jual_display')
+        ->assertOk();
 });
 
 test('marking a laptop as posted sets display status', function () {

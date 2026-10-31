@@ -181,7 +181,7 @@ class LaptopsController extends Controller
     /**
      * Export laporan laptop ke PDF.
      *
-     * - lokal: flat, dikelompokkan per status (SIAP JUAL & DISPLAY digabung).
+     * - lokal: flat, diurutkan per status, lalu merk/brand, lalu nama.
      * - supplier: dikelompokkan per kode (pengganti unique_code di versi lama),
      *   dengan filter stok habis / masih ada.
      */
@@ -210,11 +210,16 @@ class LaptopsController extends Controller
         $conf = self::LOKAL_STATUS_FILTERS[$filter] ?? self::LOKAL_STATUS_FILTERS['jual_display'];
 
         $laptops = Laptop::query()
+            ->with('brand')
             ->whereNull('code')
             ->whereNull('supplier_id')
             ->whereIn('status', $conf['statuses'])
             ->get()
-            ->sortBy(fn (Laptop $laptop) => array_search($laptop->status, self::STATUS_ORDER, true).' '.$laptop->name)
+            ->sortBy(fn (Laptop $laptop) => implode(' ', [
+                array_search($laptop->status, self::STATUS_ORDER, true),
+                mb_strtolower($laptop->brand?->name ?? ''),
+                mb_strtolower($laptop->name),
+            ]))
             ->values();
 
         $items = $laptops
