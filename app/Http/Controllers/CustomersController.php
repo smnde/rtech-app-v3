@@ -20,6 +20,8 @@ class CustomersController extends Controller
                     ->orWhere('phone', 'like', "%{$search}%");
             }))
             ->when($request->filled('member'), fn ($query) => $query->where('is_member', $request->boolean('member')))
+            ->when($request->boolean('has_notes'), fn ($query) => $query->whereHas('notes', fn ($query) => $query->where('status', 'pending')))
+            ->withCount(['notes' => fn ($query) => $query->where('status', 'pending')])
             ->orderBy('name')
             ->paginate(10)
             ->withQueryString()
@@ -29,11 +31,16 @@ class CustomersController extends Controller
                 'phone' => $customer->phone,
                 'address' => $customer->address,
                 'is_member' => (bool) $customer->is_member,
+                'notes_count' => (int) $customer->notes_count,
             ]);
 
         return inertia('Customers/Index', [
             'customers' => $customers,
-            'filters' => ['search' => $request->search, 'member' => $request->member],
+            'filters' => [
+                'search' => $request->search,
+                'member' => $request->member,
+                'has_notes' => $request->boolean('has_notes'),
+            ],
         ]);
     }
 

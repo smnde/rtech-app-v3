@@ -48,14 +48,16 @@ const memberOptions = [
 const filterForm = reactive({
     search: props.filters.search ?? '',
     member: props.filters.member ?? '',
+    has_notes: props.filters.has_notes ?? false,
 });
 
-const hasActiveFilter = computed(() => filterForm.member !== '');
+const hasActiveFilter = computed(() => filterForm.member !== '' || filterForm.has_notes);
 
 const applyFilter = () => {
     router.get(route('customers.index'), {
         search: filterForm.search || undefined,
         member: filterForm.member || undefined,
+        has_notes: filterForm.has_notes || undefined,
     }, {
         preserveState: true,
         preserveScroll: true,
@@ -71,9 +73,11 @@ watch(() => filterForm.search, () => {
 });
 
 watch(() => filterForm.member, applyFilter);
+watch(() => filterForm.has_notes, applyFilter);
 
 const resetFilter = () => {
     filterForm.member = '';
+    filterForm.has_notes = false;
 };
 
 const showModal    = ref(false);
@@ -213,6 +217,14 @@ const getDrawerActions = (item) => {
                                 <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Status Member</label>
                                 <AppDropdown v-model="filterForm.member" :options="memberOptions" placeholder="Semua customer" />
                             </div>
+                            <label class="flex items-center gap-2.5 rounded-lg border border-gray-200 px-3 py-2.5 dark:border-gray-700">
+                                <input
+                                    v-model="filterForm.has_notes"
+                                    type="checkbox"
+                                    class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800"
+                                />
+                                <span class="text-sm text-gray-700 dark:text-gray-300">Hanya yang ada catatan aktif</span>
+                            </label>
                         </AppFilterModal>
                     </div>
                 </template>
@@ -229,6 +241,14 @@ const getDrawerActions = (item) => {
                 <div class="w-full sm:w-56">
                     <AppDropdown v-model="filterForm.member" :options="memberOptions" placeholder="Semua customer" />
                 </div>
+                <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700">
+                    <input
+                        v-model="filterForm.has_notes"
+                        type="checkbox"
+                        class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800"
+                    />
+                    <span class="text-sm text-gray-700 dark:text-gray-300">Ada catatan aktif</span>
+                </label>
                 <AppButton v-if="hasActiveFilter" variant="ghost" size="sm" @click="resetFilter">
                     <X class="h-4 w-4" />
                     Reset filter
@@ -244,6 +264,7 @@ const getDrawerActions = (item) => {
                         <th class="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">No. HP</th>
                         <th class="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Alamat</th>
                         <th class="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Member</th>
+                        <th class="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Catatan</th>
                         <th class="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Aksi</th>
                     </tr>
                 </thead>
@@ -265,6 +286,12 @@ const getDrawerActions = (item) => {
                             <AppBadge :color="item.is_member ? 'purple' : 'gray'" size="sm">
                                 {{ item.is_member ? 'Member' : 'Non-member' }}
                             </AppBadge>
+                        </td>
+                        <td class="px-5 py-3">
+                            <AppBadge v-if="item.notes_count > 0" color="orange" size="sm">
+                                {{ item.notes_count }} catatan
+                            </AppBadge>
+                            <span v-else class="text-sm text-gray-400">—</span>
                         </td>
                         <td class="px-5 py-3">
                             <div class="flex items-center gap-1">
@@ -313,6 +340,9 @@ const getDrawerActions = (item) => {
                         <p class="truncate text-xs text-gray-500 dark:text-gray-400">{{ item.phone }}</p>
                     </div>
                     <div class="flex shrink-0 items-center gap-2">
+                        <AppBadge v-if="item.notes_count > 0" color="orange" size="sm">
+                            {{ item.notes_count }} catatan
+                        </AppBadge>
                         <AppBadge :color="item.is_member ? 'purple' : 'gray'" size="sm">
                             {{ item.is_member ? 'Member' : 'Non-member' }}
                         </AppBadge>

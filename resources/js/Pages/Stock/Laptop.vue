@@ -232,34 +232,40 @@ const getDrawerActions = (item) => {
 
             <AppPageHeader title="Stok Laptop" description="Data stok laptop yang tersedia di gudang." class="shrink-0">
                 <template #search>
-                    <div class="flex w-full items-center gap-2">
-                        <div class="relative flex-1 sm:flex-none">
-                            <Search class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                            <input
-                                v-model="filterForm.search"
-                                type="text"
-                                placeholder="Cari nama, SKU, kode, atau serial..."
-                                class="w-full sm:w-72 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 pl-9 pr-4 py-2 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                            />
+                    <div class="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
+                        <div class="flex w-full items-center gap-2">
+                            <div class="relative flex-1 sm:flex-none">
+                                <Search class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                <input
+                                    v-model="filterForm.search"
+                                    type="text"
+                                    placeholder="Cari nama, SKU, kode, atau serial..."
+                                    class="w-full sm:w-72 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 pl-9 pr-4 py-2 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                />
+                            </div>
+                            <AppFilterModal :active="hasActiveFilter" @reset="resetFilter">
+                                <div>
+                                    <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Brand</label>
+                                    <AppSelect v-model="filterForm.brand_id" :options="brandFilterOptions" />
+                                </div>
+                                <div>
+                                    <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Supplier</label>
+                                    <AppSelect v-model="filterForm.supplier_id" :options="supplierFilterOptions" />
+                                </div>
+                                <div>
+                                    <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
+                                    <AppDropdown v-model="filterForm.status" :options="statusFilterOptions" placeholder="Semua status" />
+                                </div>
+                                <div>
+                                    <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Urutkan SKU</label>
+                                    <AppSortToggle :model-value="filterForm.sort" @update:model-value="filterForm.sort = $event" />
+                                </div>
+                            </AppFilterModal>
                         </div>
-                        <AppFilterModal :active="hasActiveFilter" @reset="resetFilter">
-                            <div>
-                                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Brand</label>
-                                <AppSelect v-model="filterForm.brand_id" :options="brandFilterOptions" />
-                            </div>
-                            <div>
-                                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Supplier</label>
-                                <AppSelect v-model="filterForm.supplier_id" :options="supplierFilterOptions" />
-                            </div>
-                            <div>
-                                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
-                                <AppDropdown v-model="filterForm.status" :options="statusFilterOptions" placeholder="Semua status" />
-                            </div>
-                            <div>
-                                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Urutkan SKU</label>
-                                <AppSortToggle :model-value="filterForm.sort" @update:model-value="filterForm.sort = $event" />
-                            </div>
-                        </AppFilterModal>
+                        <AppButton variant="outline" size="md" class="w-full sm:hidden" @click="openExport">
+                            <FileDown class="h-4 w-4" />
+                            Export
+                        </AppButton>
                     </div>
                 </template>
 
