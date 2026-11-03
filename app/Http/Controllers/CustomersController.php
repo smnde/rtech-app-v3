@@ -20,8 +20,20 @@ class CustomersController extends Controller
                     ->orWhere('phone', 'like', "%{$search}%");
             }))
             ->when($request->filled('member'), fn ($query) => $query->where('is_member', $request->boolean('member')))
-            ->when($request->boolean('has_notes'), fn ($query) => $query->whereHas('notes', fn ($query) => $query->where('status', 'pending')))
-            ->withCount(['notes' => fn ($query) => $query->where('status', 'pending')])
+            ->when($request->filled('note_type'), fn ($query) => $query->whereHas(
+                'notes',
+                fn ($query) => $query->where('type', $request->note_type)->where('status', 'pending')
+            ), fn ($query) => $query->when(
+                $request->boolean('has_notes'),
+                fn ($query) => $query->whereHas('notes', fn ($query) => $query->where('status', 'pending'))
+            ))
+            ->withCount([
+                'notes as notes_count' => fn ($query) => $query->where('status', 'pending'),
+                'notes as hutang_count' => fn ($query) => $query->where('status', 'pending')->where('type', 'hutang'),
+                'notes as janji_count' => fn ($query) => $query->where('status', 'pending')->where('type', 'janji'),
+                'notes as info_count' => fn ($query) => $query->where('status', 'pending')->where('type', 'info'),
+                'notes as general_count' => fn ($query) => $query->where('status', 'pending')->where('type', 'general'),
+            ])
             ->orderBy('name')
             ->paginate(10)
             ->withQueryString()
@@ -32,6 +44,12 @@ class CustomersController extends Controller
                 'address' => $customer->address,
                 'is_member' => (bool) $customer->is_member,
                 'notes_count' => (int) $customer->notes_count,
+                'note_counts' => [
+                    'hutang' => (int) $customer->hutang_count,
+                    'janji' => (int) $customer->janji_count,
+                    'info' => (int) $customer->info_count,
+                    'general' => (int) $customer->general_count,
+                ],
             ]);
 
         return inertia('Customers/Index', [
@@ -40,6 +58,7 @@ class CustomersController extends Controller
                 'search' => $request->search,
                 'member' => $request->member,
                 'has_notes' => $request->boolean('has_notes'),
+                'note_type' => $request->note_type,
             ],
         ]);
     }

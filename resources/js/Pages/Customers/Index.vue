@@ -45,19 +45,34 @@ const memberOptions = [
     { id: '0', label: 'Bukan member' },
 ];
 
+const NOTE_TYPES = {
+    hutang:  { label: 'Hutang', color: 'red' },
+    janji:   { label: 'Janji',  color: 'orange' },
+    info:    { label: 'Info',   color: 'blue' },
+    general: { label: 'Umum',   color: 'gray' },
+};
+
+// '' = semua, 'any' = ada catatan aktif, sisanya = tipe catatan
+const noteFilterOptions = [
+    { id: '', label: 'Semua catatan' },
+    { id: 'any', label: 'Ada catatan aktif' },
+    ...Object.entries(NOTE_TYPES).map(([id, { label }]) => ({ id, label: `Catatan ${label}` })),
+];
+
 const filterForm = reactive({
     search: props.filters.search ?? '',
     member: props.filters.member ?? '',
-    has_notes: props.filters.has_notes ?? false,
+    note: props.filters.note_type || (props.filters.has_notes ? 'any' : ''),
 });
 
-const hasActiveFilter = computed(() => filterForm.member !== '' || filterForm.has_notes);
+const hasActiveFilter = computed(() => filterForm.member !== '' || filterForm.note !== '');
 
 const applyFilter = () => {
     router.get(route('customers.index'), {
         search: filterForm.search || undefined,
         member: filterForm.member || undefined,
-        has_notes: filterForm.has_notes || undefined,
+        has_notes: filterForm.note === 'any' || undefined,
+        note_type: (filterForm.note && filterForm.note !== 'any') || undefined,
     }, {
         preserveState: true,
         preserveScroll: true,
@@ -73,11 +88,11 @@ watch(() => filterForm.search, () => {
 });
 
 watch(() => filterForm.member, applyFilter);
-watch(() => filterForm.has_notes, applyFilter);
+watch(() => filterForm.note, applyFilter);
 
 const resetFilter = () => {
     filterForm.member = '';
-    filterForm.has_notes = false;
+    filterForm.note = '';
 };
 
 const showModal    = ref(false);
@@ -217,14 +232,10 @@ const getDrawerActions = (item) => {
                                 <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Status Member</label>
                                 <AppDropdown v-model="filterForm.member" :options="memberOptions" placeholder="Semua customer" />
                             </div>
-                            <label class="flex items-center gap-2.5 rounded-lg border border-gray-200 px-3 py-2.5 dark:border-gray-700">
-                                <input
-                                    v-model="filterForm.has_notes"
-                                    type="checkbox"
-                                    class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800"
-                                />
-                                <span class="text-sm text-gray-700 dark:text-gray-300">Hanya yang ada catatan aktif</span>
-                            </label>
+                            <div>
+                                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Catatan Customer</label>
+                                <AppDropdown v-model="filterForm.note" :options="noteFilterOptions" placeholder="Semua catatan" />
+                            </div>
                         </AppFilterModal>
                     </div>
                 </template>
@@ -241,14 +252,9 @@ const getDrawerActions = (item) => {
                 <div class="w-full sm:w-56">
                     <AppDropdown v-model="filterForm.member" :options="memberOptions" placeholder="Semua customer" />
                 </div>
-                <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700">
-                    <input
-                        v-model="filterForm.has_notes"
-                        type="checkbox"
-                        class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800"
-                    />
-                    <span class="text-sm text-gray-700 dark:text-gray-300">Ada catatan aktif</span>
-                </label>
+                <div class="w-full sm:w-56">
+                    <AppDropdown v-model="filterForm.note" :options="noteFilterOptions" placeholder="Semua catatan" />
+                </div>
                 <AppButton v-if="hasActiveFilter" variant="ghost" size="sm" @click="resetFilter">
                     <X class="h-4 w-4" />
                     Reset filter
@@ -288,9 +294,17 @@ const getDrawerActions = (item) => {
                             </AppBadge>
                         </td>
                         <td class="px-5 py-3">
-                            <AppBadge v-if="item.notes_count > 0" color="orange" size="sm">
-                                {{ item.notes_count }} catatan
-                            </AppBadge>
+                            <div v-if="item.notes_count > 0" class="flex flex-wrap items-center gap-1.5">
+                                <AppBadge
+                                    v-for="(meta, type) in NOTE_TYPES"
+                                    v-show="item.note_counts[type] > 0"
+                                    :key="type"
+                                    :color="meta.color"
+                                    size="sm"
+                                >
+                                    {{ meta.label }} · {{ item.note_counts[type] }}
+                                </AppBadge>
+                            </div>
                             <span v-else class="text-sm text-gray-400">—</span>
                         </td>
                         <td class="px-5 py-3">
@@ -335,14 +349,22 @@ const getDrawerActions = (item) => {
                     class="flex items-center justify-between gap-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3.5 py-2.5 shadow-sm cursor-pointer active:bg-gray-50 dark:active:bg-gray-800/50"
                     @click="openActionDrawer(item)"
                 >
-                    <div class="min-w-0">
+                    <div class="min-w-0 flex-1">
                         <p class="truncate text-sm font-medium text-gray-900 dark:text-white">{{ item.name }}</p>
                         <p class="truncate text-xs text-gray-500 dark:text-gray-400">{{ item.phone }}</p>
+                        <div v-if="item.notes_count > 0" class="mt-1.5 flex flex-wrap items-center gap-1.5">
+                            <AppBadge
+                                v-for="(meta, type) in NOTE_TYPES"
+                                v-show="item.note_counts[type] > 0"
+                                :key="type"
+                                :color="meta.color"
+                                size="sm"
+                            >
+                                {{ meta.label }} · {{ item.note_counts[type] }}
+                            </AppBadge>
+                        </div>
                     </div>
                     <div class="flex shrink-0 items-center gap-2">
-                        <AppBadge v-if="item.notes_count > 0" color="orange" size="sm">
-                            {{ item.notes_count }} catatan
-                        </AppBadge>
                         <AppBadge :color="item.is_member ? 'purple' : 'gray'" size="sm">
                             {{ item.is_member ? 'Member' : 'Non-member' }}
                         </AppBadge>
