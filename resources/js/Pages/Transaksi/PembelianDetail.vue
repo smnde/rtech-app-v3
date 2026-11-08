@@ -9,9 +9,11 @@ import ReceiptModal from '@/Components/Cart/ReceiptModal.vue';
 import AppConfirmModal from '@/Components/UI/AppConfirmModal.vue';
 import { usePermission } from '@/composables/usePermission';
 import { useConfirm } from '@/composables/useConfirm';
+import { useDeleteConfirm } from '@/composables/useDeleteConfirm';
 
 const { can } = usePermission();
 const confirm = useConfirm();
+const { confirmDelete } = useDeleteConfirm();
 
 const props = defineProps({
     purchase: { type: Object, required: true },
@@ -35,14 +37,12 @@ const markDone = async () => {
 };
 
 const deletePurchase = async () => {
-    const ok = await confirm.confirm({
+    await confirmDelete({
+        url: route('transaksi.pembelian.destroy', props.purchase.id),
         title: 'Hapus pembelian?',
         message: 'Stok akan dikembalikan & mutasi terkait dihapus. Tindakan ini permanen.',
         confirmLabel: 'Hapus',
-    });
-    if (!ok) return;
-    router.delete(route('transaksi.pembelian.destroy', props.purchase.id), {
-        preserveScroll: true,
+        options: { preserveScroll: true },
     });
 };
 

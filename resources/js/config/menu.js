@@ -132,13 +132,6 @@ export const menuItems = [
                 permission: 'show purchase',
             },
             {
-                key: 'transaksi-pengeluaran',
-                label: 'Pengeluaran',
-                icon: Receipt,
-                route: 'expenses.index',
-                permission: 'show expense',
-            },
-            {
                 key: 'transaksi-kas',
                 label: 'Kas',
                 icon: Wallet,

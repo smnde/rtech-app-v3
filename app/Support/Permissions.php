@@ -22,7 +22,6 @@ final class Permissions
         'gadget',
         'aksesoris',
         'sparepart',
-        'expense',
         'stock_movement',
         'cashflow',
     ];

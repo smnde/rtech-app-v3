@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Expense;
+use App\Models\CashFlow;
 use App\Models\Purchase;
 use App\Models\Reparation;
 use App\Models\Sale;
@@ -135,22 +135,23 @@ class ReportsController extends Controller
     {
         [$from, $to] = $this->period($request);
 
-        $expenses = Expense::query()
+        $expenses = CashFlow::query()
             ->with('user:id,name')
-            ->where('created_at', '>=', "{$from} 00:00:00")
-            ->where('created_at', '<=', "{$to} 23:59:59")
-            ->latest()
+            ->where('category', CashFlow::CATEGORY_EXPENSE)
+            ->where('flow_date', '>=', $from)
+            ->where('flow_date', '<=', $to)
+            ->orderByDesc('flow_date')
+            ->orderByDesc('id')
             ->get();
 
         return Inertia::render('Laporan/Pengeluaran', [
             'filters' => ['from' => $from, 'to' => $to],
-            'rows' => $expenses->map(fn (Expense $expense) => [
-                'id' => $expense->id,
-                'date' => $expense->created_at->toDateTimeString(),
-                'category' => $expense->category,
-                'description' => $expense->description,
-                'amount' => (float) $expense->amount,
-                'user_name' => $expense->user?->name,
+            'rows' => $expenses->map(fn (CashFlow $flow) => [
+                'id' => $flow->id,
+                'date' => $flow->flow_date->toDateString(),
+                'description' => $flow->description,
+                'amount' => (float) $flow->amount,
+                'user_name' => $flow->user?->name,
             ])->values(),
             'summary' => [
                 'count' => $expenses->count(),

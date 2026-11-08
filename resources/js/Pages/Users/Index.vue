@@ -11,7 +11,7 @@ import AppTable from '@/Components/UI/AppTable.vue';
 import AppActionDrawer from '@/Components/UI/AppActionDrawer.vue';
 import UserFormModal from '@/Components/Users/UserFormModal.vue';
 import { useToast } from '@/composables/useToast';
-import { useConfirm } from '@/composables/useConfirm';
+import { useDeleteConfirm } from '@/composables/useDeleteConfirm';
 
 const props = defineProps({
     users:         { type: Object, required: true },
@@ -21,7 +21,7 @@ const props = defineProps({
 });
 
 const toast   = useToast();
-const confirm = useConfirm();
+const { confirmDelete } = useDeleteConfirm();
 const page    = usePage();
 
 // ─── Flash dari server → toast ────────────────────────────────
@@ -77,13 +77,13 @@ const handleSubmit = (payload) => {
 };
 
 const handleDelete = async (user) => {
-    const ok = await confirm.confirm({
+    await confirmDelete({
+        url: route('users.destroy', user.id),
         title: 'Hapus user?',
         message: `User "${user.name}" akan dihapus permanen.`,
         confirmLabel: 'Hapus',
+        options: { preserveScroll: true },
     });
-    if (!ok) return;
-    router.delete(route('users.destroy', user.id), { preserveScroll: true });
 };
 
 // ─── Helpers ──────────────────────────────────────────────────

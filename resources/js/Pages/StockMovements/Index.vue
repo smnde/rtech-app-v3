@@ -18,7 +18,7 @@ import AppFilterModal from '@/Components/UI/AppFilterModal.vue';
 import AppNumberInput from '@/Components/UI/AppNumberInput.vue';
 import { usePermission } from '@/composables/usePermission';
 import { useToast } from '@/composables/useToast';
-import { useConfirm } from '@/composables/useConfirm';
+import { useDeleteConfirm } from '@/composables/useDeleteConfirm';
 
 const props = defineProps({
     movements: { type: Object, required: true },
@@ -28,7 +28,7 @@ const props = defineProps({
 
 const { can } = usePermission();
 const toast = useToast();
-const confirm = useConfirm();
+const { confirmDelete } = useDeleteConfirm();
 const page = usePage();
 
 watch(
@@ -231,15 +231,15 @@ const submitEdit = () => {
 };
 
 const handleDelete = async (movement) => {
-    const ok = await confirm.confirm({
+    await confirmDelete({
+        url: route('stock-movements.destroy', movement.id),
         title: 'Hapus mutasi?',
         message: `Mutasi ${TYPE_LABEL[movement.type] ?? movement.type} ${movement.quantity} untuk "${movement.item_name}" akan dihapus dan stok dikembalikan.`,
         confirmLabel: 'Hapus',
-    });
-    if (!ok) return;
-    router.delete(route('stock-movements.destroy', movement.id), {
-        preserveScroll: true,
-        onError: (serverErrors) => toast.error(Object.values(serverErrors)[0] ?? 'Mutasi tidak bisa dihapus.'),
+        options: {
+            preserveScroll: true,
+            onError: (serverErrors) => toast.error(Object.values(serverErrors)[0] ?? 'Mutasi tidak bisa dihapus.'),
+        },
     });
 };
 

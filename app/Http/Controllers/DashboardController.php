@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Accessory;
 use App\Models\CashFlow;
 use App\Models\Customer;
-use App\Models\Expense;
 use App\Models\Gadget;
 use App\Models\ItemLog;
 use App\Models\Laptop;
@@ -62,8 +61,9 @@ class DashboardController extends Controller
             ->selectRaw('COUNT(*) as jumlah, COALESCE(SUM(total), 0) as total')
             ->first();
 
-        $expensesTodayTotal = (float) Expense::query()
-            ->whereBetween('created_at', [$todayStart, $todayEnd])
+        $expensesTodayTotal = (float) CashFlow::query()
+            ->where('category', CashFlow::CATEGORY_EXPENSE)
+            ->whereBetween('flow_date', [$todayStart->toDateString(), $todayEnd->toDateString()])
             ->sum('amount');
 
         $cashFlows = CashFlow::query()

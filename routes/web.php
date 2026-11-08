@@ -8,7 +8,6 @@ use App\Http\Controllers\CategoriesController;
 use App\Http\Controllers\CustomerNotesController;
 use App\Http\Controllers\CustomersController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\ExpensesController;
 use App\Http\Controllers\GadgetsController;
 use App\Http\Controllers\ItemLogController;
 use App\Http\Controllers\LaptopsController;
@@ -41,7 +40,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/stock/laptop/{laptop}/logs', [ItemLogController::class, 'store'])->middleware('permission:edit laptop')->name('stock.laptop.logs.store');
     Route::post('/stock/laptop/{laptop}/issues', [ItemLogController::class, 'storeIssue'])->middleware('permission:edit laptop')->name('stock.laptop.issues.store');
     Route::patch('/stock/laptop/{laptop}/issues/{issueId}', [ItemLogController::class, 'toggleIssue'])->middleware('permission:edit laptop')->name('stock.laptop.issues.toggle');
-    Route::delete('/item-logs/{itemLog}', [ItemLogController::class, 'destroy'])->name('item-logs.destroy');
+    Route::delete('/item-logs/{itemLog}', [ItemLogController::class, 'destroy'])->name('item-logs.destroy')->middleware('sysadmin.password');
 
     // Profil (semua user, ubah nama sendiri)
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -52,17 +51,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/category', [CategoriesController::class, 'index'])->middleware('permission:show category')->name('category');
         Route::post('/category', [CategoriesController::class, 'store'])->middleware('permission:add category')->name('category.store');
         Route::put('/category/{category}', [CategoriesController::class, 'update'])->middleware('permission:edit category')->name('category.update');
-        Route::delete('/category/{category}', [CategoriesController::class, 'destroy'])->middleware('permission:delete category')->name('category.destroy');
+        Route::delete('/category/{category}', [CategoriesController::class, 'destroy'])->middleware('permission:delete category')->name('category.destroy')->middleware('sysadmin.password');
 
         Route::get('/brand', [BrandsController::class, 'index'])->middleware('permission:show brand')->name('brand');
         Route::post('/brand', [BrandsController::class, 'store'])->middleware('permission:add brand')->name('brand.store');
         Route::put('/brand/{brand}', [BrandsController::class, 'update'])->middleware('permission:edit brand')->name('brand.update');
-        Route::delete('/brand/{brand}', [BrandsController::class, 'destroy'])->middleware('permission:delete brand')->name('brand.destroy');
+        Route::delete('/brand/{brand}', [BrandsController::class, 'destroy'])->middleware('permission:delete brand')->name('brand.destroy')->middleware('sysadmin.password');
 
         Route::get('/supplier', [SuppliersController::class, 'index'])->middleware('permission:show supplier')->name('supplier');
         Route::post('/supplier', [SuppliersController::class, 'store'])->middleware('permission:add supplier')->name('supplier.store');
         Route::put('/supplier/{supplier}', [SuppliersController::class, 'update'])->middleware('permission:edit supplier')->name('supplier.update');
-        Route::delete('/supplier/{supplier}', [SuppliersController::class, 'destroy'])->middleware('permission:delete supplier')->name('supplier.destroy');
+        Route::delete('/supplier/{supplier}', [SuppliersController::class, 'destroy'])->middleware('permission:delete supplier')->name('supplier.destroy')->middleware('sysadmin.password');
     });
 
     // === Data Stok ===
@@ -72,37 +71,37 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/laptop/{laptop}', [LaptopsController::class, 'show'])->middleware('permission:show laptop')->name('laptop.show');
         Route::post('/laptop', [LaptopsController::class, 'store'])->middleware('permission:add laptop')->name('laptop.store');
         Route::put('/laptop/{laptop}', [LaptopsController::class, 'update'])->middleware('permission:edit laptop')->name('laptop.update');
-        Route::delete('/laptop/{laptop}', [LaptopsController::class, 'destroy'])->middleware('permission:delete laptop')->name('laptop.destroy');
+        Route::delete('/laptop/{laptop}', [LaptopsController::class, 'destroy'])->middleware('permission:delete laptop')->name('laptop.destroy')->middleware('sysadmin.password');
 
         Route::get('/gadget', [GadgetsController::class, 'index'])->middleware('permission:show gadget')->name('gadget');
         Route::get('/gadget/{gadget}', [GadgetsController::class, 'show'])->middleware('permission:show gadget')->name('gadget.show');
         Route::post('/gadget', [GadgetsController::class, 'store'])->middleware('permission:add gadget')->name('gadget.store');
         Route::put('/gadget/{gadget}', [GadgetsController::class, 'update'])->middleware('permission:edit gadget')->name('gadget.update');
-        Route::delete('/gadget/{gadget}', [GadgetsController::class, 'destroy'])->middleware('permission:delete gadget')->name('gadget.destroy');
+        Route::delete('/gadget/{gadget}', [GadgetsController::class, 'destroy'])->middleware('permission:delete gadget')->name('gadget.destroy')->middleware('sysadmin.password');
 
         Route::get('/aksesoris', [AccesoriesController::class, 'index'])->middleware('permission:show aksesoris')->name('aksesoris');
         Route::get('/aksesoris/{accessory}', [AccesoriesController::class, 'show'])->middleware('permission:show aksesoris')->name('aksesoris.show');
         Route::post('/aksesoris', [AccesoriesController::class, 'store'])->middleware('permission:add aksesoris')->name('aksesoris.store');
         Route::put('/aksesoris/{accessory}', [AccesoriesController::class, 'update'])->middleware('permission:edit aksesoris')->name('aksesoris.update');
-        Route::delete('/aksesoris/{accessory}', [AccesoriesController::class, 'destroy'])->middleware('permission:delete aksesoris')->name('aksesoris.destroy');
+        Route::delete('/aksesoris/{accessory}', [AccesoriesController::class, 'destroy'])->middleware('permission:delete aksesoris')->name('aksesoris.destroy')->middleware('sysadmin.password');
 
         Route::get('/sparepart', [SparepartsController::class, 'index'])->middleware('permission:show sparepart')->name('sparepart');
         Route::get('/sparepart/{sparepart}', [SparepartsController::class, 'show'])->middleware('permission:show sparepart')->name('sparepart.show');
         Route::post('/sparepart', [SparepartsController::class, 'store'])->middleware('permission:add sparepart')->name('sparepart.store');
         Route::put('/sparepart/{sparepart}', [SparepartsController::class, 'update'])->middleware('permission:edit sparepart')->name('sparepart.update');
-        Route::delete('/sparepart/{sparepart}', [SparepartsController::class, 'destroy'])->middleware('permission:delete sparepart')->name('sparepart.destroy');
+        Route::delete('/sparepart/{sparepart}', [SparepartsController::class, 'destroy'])->middleware('permission:delete sparepart')->name('sparepart.destroy')->middleware('sysadmin.password');
     });
 
     // === User & Customer ===
     Route::get('/users', [UsersController::class, 'index'])->middleware('permission:show user')->name('users.index');
     Route::post('/users', [UsersController::class, 'store'])->middleware('permission:add user')->name('users.store');
     Route::put('/users/{user}', [UsersController::class, 'update'])->name('users.update');
-    Route::delete('/users/{user}', [UsersController::class, 'destroy'])->middleware('permission:delete user')->name('users.destroy');
+    Route::delete('/users/{user}', [UsersController::class, 'destroy'])->middleware('permission:delete user')->name('users.destroy')->middleware('sysadmin.password');
 
     Route::middleware('role:SYSADMIN')->group(function () {
         Route::get('/roles', [RolesController::class, 'index'])->name('roles.index');
         Route::post('/roles', [RolesController::class, 'store'])->name('roles.store');
-        Route::delete('/roles/{role}', [RolesController::class, 'destroy'])->name('roles.destroy');
+        Route::delete('/roles/{role}', [RolesController::class, 'destroy'])->name('roles.destroy')->middleware('sysadmin.password');
 
         Route::get('/permissions', [PermissionsController::class, 'index'])->name('permissions.index');
         Route::post('/permissions', [PermissionsController::class, 'store'])->name('permissions.store');
@@ -116,11 +115,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/customers', [CustomersController::class, 'index'])->middleware('permission:show customer')->name('customers.index');
     Route::post('/customers', [CustomersController::class, 'store'])->middleware('permission:add customer')->name('customers.store');
     Route::put('/customers/{customer}', [CustomersController::class, 'update'])->middleware('permission:edit customer')->name('customers.update');
-    Route::delete('/customers/{customer}', [CustomersController::class, 'destroy'])->middleware('permission:delete customer')->name('customers.destroy');
+    Route::delete('/customers/{customer}', [CustomersController::class, 'destroy'])->middleware('permission:delete customer')->name('customers.destroy')->middleware('sysadmin.password');
     Route::get('/customers/{customer}', [CustomersController::class, 'show'])->middleware('permission:show customer')->name('customers.show');
     Route::post('/customers/{customer}/notes', [CustomerNotesController::class, 'store'])->middleware('permission:edit customer')->name('customers.notes.store');
     Route::put('/customers/{customer}/notes/{note}', [CustomerNotesController::class, 'update'])->middleware('permission:edit customer')->name('customers.notes.update');
-    Route::delete('/customers/{customer}/notes/{note}', [CustomerNotesController::class, 'destroy'])->middleware('permission:edit customer')->name('customers.notes.destroy');
+    Route::delete('/customers/{customer}/notes/{note}', [CustomerNotesController::class, 'destroy'])->middleware('permission:edit customer')->name('customers.notes.destroy')->middleware('sysadmin.password');
 
     // === Servis ===
     Route::get('/servis', [ReparationsController::class, 'index'])->middleware('permission:show reparation')->name('servis.index');
@@ -128,10 +127,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/servis', [ReparationsController::class, 'store'])->middleware('permission:add reparation')->name('servis.store');
     Route::put('/servis/{reparation}', [ReparationsController::class, 'update'])->middleware('permission:edit reparation')->name('servis.update');
     Route::patch('/servis/{reparation}/konfirmasi', [ReparationsController::class, 'confirm'])->middleware('permission:edit reparation')->name('servis.confirm');
-    Route::post('/servis/{reparation}/tahapan', [ReparationsController::class, 'addStage'])->middleware('permission:edit reparation')->name('servis.add-stage');
     Route::patch('/servis/{reparation}/status', [ReparationsController::class, 'changeStatus'])->middleware('permission:edit reparation')->name('servis.status');
     Route::patch('/servis/{reparation}/lunas', [ReparationsController::class, 'markPaid'])->middleware('permission:edit reparation')->name('servis.lunas');
-    Route::delete('/servis/{reparation}', [ReparationsController::class, 'destroy'])->middleware('permission:delete reparation')->name('servis.destroy');
+    Route::delete('/servis/{reparation}', [ReparationsController::class, 'destroy'])->middleware('permission:delete reparation')->name('servis.destroy')->middleware('sysadmin.password');
 
     // === Transaksi ===
     Route::prefix('transaksi')->name('transaksi.')->group(function () {
@@ -140,11 +138,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/penjualan', [SalesController::class, 'store'])->middleware('permission:add sale')->name('penjualan.store');
         Route::get('/penjualan/{sale}', [SalesController::class, 'show'])->middleware('permission:show sale')->name('penjualan.show');
         Route::post('/penjualan/{sale}/lunas', [SalesController::class, 'markPaid'])->middleware('permission:edit sale')->name('penjualan.lunas');
-        Route::delete('/penjualan/{sale}', [SalesController::class, 'destroy'])->middleware('permission:delete sale')->name('penjualan.destroy');
+        Route::delete('/penjualan/{sale}', [SalesController::class, 'destroy'])->middleware('permission:delete sale')->name('penjualan.destroy')->middleware('sysadmin.password');
         Route::get('/pembelian', [PurchasesController::class, 'index'])->middleware('permission:show purchase')->name('pembelian');
         Route::get('/pembelian/create', [PurchasesController::class, 'create'])->middleware('permission:add purchase')->name('pembelian.create');
         Route::post('/pembelian/{purchase}/done', [PurchasesController::class, 'markDone'])->middleware('permission:edit purchase')->name('pembelian.done');
-        Route::delete('/pembelian/{purchase}', [PurchasesController::class, 'destroy'])->middleware('permission:delete purchase')->name('pembelian.destroy');
+        Route::delete('/pembelian/{purchase}', [PurchasesController::class, 'destroy'])->middleware('permission:delete purchase')->name('pembelian.destroy')->middleware('sysadmin.password');
         Route::get('/pembelian/{purchase}', [PurchasesController::class, 'show'])->middleware('permission:show purchase')->name('pembelian.show');
         Route::post('/pembelian', [PurchasesController::class, 'store'])->middleware('permission:add purchase')->name('pembelian.store');
 
@@ -161,23 +159,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('/keranjang/hold/{cart}', [CartsController::class, 'destroy'])->name('keranjang.destroy');
     });
 
-    // === Pengeluaran ===
-    Route::get('/pengeluaran', [ExpensesController::class, 'index'])->middleware('permission:show expense')->name('expenses.index');
-    Route::post('/pengeluaran', [ExpensesController::class, 'store'])->middleware('permission:add expense')->name('expenses.store');
-    Route::put('/pengeluaran/{expense}', [ExpensesController::class, 'update'])->middleware('permission:edit expense')->name('expenses.update');
-    Route::delete('/pengeluaran/{expense}', [ExpensesController::class, 'destroy'])->middleware('permission:delete expense')->name('expenses.destroy');
-
     // === Kas (CashFlow) ===
     Route::get('/kas', [CashFlowController::class, 'index'])->middleware('permission:show cashflow')->name('cashflow.index');
     Route::post('/kas', [CashFlowController::class, 'store'])->middleware('permission:add cashflow')->name('cashflow.store');
     Route::put('/kas/{cashFlow}', [CashFlowController::class, 'update'])->middleware('permission:edit cashflow')->name('cashflow.update');
-    Route::delete('/kas/{cashFlow}', [CashFlowController::class, 'destroy'])->middleware('permission:delete cashflow')->name('cashflow.destroy');
+    Route::delete('/kas/{cashFlow}', [CashFlowController::class, 'destroy'])->middleware('permission:delete cashflow')->name('cashflow.destroy')->middleware('sysadmin.password');
 
     // === Mutasi Stok ===
     Route::get('/mutasi-stok', [StockMovementsController::class, 'index'])->middleware('permission:show stock_movement')->name('stock-movements.index');
     Route::post('/mutasi-stok', [StockMovementsController::class, 'store'])->middleware('permission:add stock_movement')->name('stock-movements.store');
     Route::patch('/mutasi-stok/{stockMovement}', [StockMovementsController::class, 'update'])->middleware('permission:edit stock_movement')->name('stock-movements.update');
-    Route::delete('/mutasi-stok/{stockMovement}', [StockMovementsController::class, 'destroy'])->middleware('permission:delete stock_movement')->name('stock-movements.destroy');
+    Route::delete('/mutasi-stok/{stockMovement}', [StockMovementsController::class, 'destroy'])->middleware('permission:delete stock_movement')->name('stock-movements.destroy')->middleware('sysadmin.password');
 
     // === Laporan ===
     Route::prefix('laporan')->name('laporan.')->group(function () {

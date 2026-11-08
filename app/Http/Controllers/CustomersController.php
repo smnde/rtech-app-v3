@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\Customer\StoreCustomerRequest;
 use App\Http\Requests\Customer\UpdateCustomerRequest;
 use App\Models\Customer;
+use App\Support\LikePattern;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -16,8 +17,9 @@ class CustomersController extends Controller
     {
         $customers = Customer::query()
             ->when($request->search, fn ($query, $search) => $query->where(function ($query) use ($search) {
-                $query->where('name', 'like', "%{$search}%")
-                    ->orWhere('phone', 'like', "%{$search}%");
+                $pattern = LikePattern::contains($search);
+                $query->where('name', 'like', $pattern)
+                    ->orWhere('phone', 'like', $pattern);
             }))
             ->when($request->filled('member'), fn ($query) => $query->where('is_member', $request->boolean('member')))
             ->when($request->filled('note_type'), fn ($query) => $query->whereHas(

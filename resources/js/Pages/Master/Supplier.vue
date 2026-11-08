@@ -11,7 +11,7 @@ import AppTable from '@/Components/UI/AppTable.vue';
 import AppActionDrawer from '@/Components/UI/AppActionDrawer.vue';
 import SupplierFormModal from '@/Components/Suppliers/SupplierFormModal.vue';
 import { useToast } from '@/composables/useToast';
-import { useConfirm } from '@/composables/useConfirm';
+import { useDeleteConfirm } from '@/composables/useDeleteConfirm';
 
 const { can } = usePermission();
 
@@ -21,7 +21,7 @@ const props = defineProps({
 });
 
 const toast   = useToast();
-const confirm = useConfirm();
+const { confirmDelete } = useDeleteConfirm();
 const page    = usePage();
 
 watch(
@@ -73,13 +73,13 @@ const handleSubmit = (payload) => {
 };
 
 const handleDelete = async (item) => {
-    const ok = await confirm.confirm({
+    await confirmDelete({
+        url: route('master.supplier.destroy', item.id),
         title: 'Hapus supplier?',
         message: `Supplier "${item.name}" akan dihapus permanen.`,
         confirmLabel: 'Hapus',
+        options: { preserveScroll: true },
     });
-    if (!ok) return;
-    router.delete(route('master.supplier.destroy', item.id), { preserveScroll: true });
 };
 
 // Mobile action drawer

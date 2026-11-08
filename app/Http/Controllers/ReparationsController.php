@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\Reparation\AddStageRequest;
 use App\Http\Requests\Reparation\ChangeReparationStatusRequest;
 use App\Http\Requests\Reparation\ConfirmReparationRequest;
 use App\Http\Requests\Reparation\StoreReparationRequest;
@@ -12,6 +11,8 @@ use App\Models\Customer;
 use App\Models\Reparation;
 use App\Models\ReparationLog;
 use App\Models\ReparationStage;
+use App\Support\CashFlowRecorder;
+use App\Support\LikePattern;
 use App\Support\ReparationPayment;
 use App\Support\ReparationTracker;
 use Carbon\Carbon;
@@ -33,8 +34,9 @@ class ReparationsController extends Controller
         $reparations = Reparation::query()
             ->with(['customer:id,name,phone', 'stages.items'])
             ->when($request->search, fn ($query, $search) => $query->where(function ($query) use ($search) {
-                $query->where('item_name', 'like', "%{$search}%")
-                    ->orWhereHas('customer', fn ($query) => $query->where('name', 'like', "%{$search}%"));
+                $pattern = LikePattern::contains($search);
+                $query->where('item_name', 'like', $pattern)
+                    ->orWhereHas('customer', fn ($query) => $query->where('name', 'like', $pattern));
             }))
             ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')))
             ->when($request->filled('flag'), fn ($query) => $query->whereJsonContains('flag', $request->string('flag')->toString()))
@@ -108,29 +110,6 @@ class ReparationsController extends Controller
         }
 
         return back()->with('success', 'Servis berhasil diperbarui.');
-    }
-
-    public function addStage(AddStageRequest $request, Reparation $reparation, ReparationTracker $tracker): RedirectResponse
-    {
-        $data = $request->validated();
-        $lastStage = $reparation->stages()->latest('sequence')->first();
-        $nextSequence = $lastStage?->sequence + 1 ?? 1;
-
-        $stage = ReparationStage::create([
-            'reparation_id' => $reparation->id,
-            'sequence' => $nextSequence,
-            'status' => 'PENDING',
-        ]);
-
-        foreach ($data['items'] as $item) {
-            $stage->items()->create([
-                'label' => $item['label'],
-                'cost' => $item['cost'],
-                'est_days' => $item['est_days'] ?? null,
-            ]);
-        }
-
-        return back()->with('success', "Tahap {$nextSequence} ditambahkan.");
     }
 
     public function confirm(ConfirmReparationRequest $request, Reparation $reparation, ReparationTracker $tracker): RedirectResponse
@@ -222,10 +201,16 @@ class ReparationsController extends Controller
             : 'Pembayaran ditandai lunas (tidak ada biaya yang dicatat ke kas).');
     }
 
-    public function destroy(Reparation $reparation): RedirectResponse
+    public function destroy(Request $request, Reparation $reparation): RedirectResponse
     {
+        abort_unless($request->user()->isSysadmin(), 403, 'Hanya Sysadmin yang dapat menghapus servis.');
+
         try {
-            $reparation->delete();
+            DB::transaction(function () use ($reparation) {
+                $reparation->logs()->delete();
+                CashFlowRecorder::deleteByReference($reparation->invoice);
+                $reparation->delete();
+            });
         } catch (QueryException) {
             return back()->with('error', 'Servis tidak dapat dihapus karena sudah memiliki riwayat.');
         }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\User\StoreUserRequest;
 use App\Http\Requests\User\UpdateUserRequest;
 use App\Models\User;
+use App\Support\LikePattern;
 use App\Support\Permissions;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
@@ -20,8 +21,9 @@ class UsersController extends Controller
         $users = User::query()
             ->with('roles')
             ->when($request->search, fn ($query, $search) => $query->where(function ($query) use ($search) {
-                $query->where('name', 'like', "%{$search}%")
-                    ->orWhere('username', 'like', "%{$search}%");
+                $pattern = LikePattern::contains($search);
+                $query->where('name', 'like', $pattern)
+                    ->orWhere('username', 'like', $pattern);
             }))
             ->orderBy('name')
             ->paginate(10)

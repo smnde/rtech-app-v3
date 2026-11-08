@@ -16,7 +16,7 @@ import AppConfirmModal from '@/Components/UI/AppConfirmModal.vue';
 import AppModal from '@/Components/UI/AppModal.vue';
 import AppActionDrawer from '@/Components/UI/AppActionDrawer.vue';
 import { useToast } from '@/composables/useToast';
-import { useConfirm } from '@/composables/useConfirm';
+import { useDeleteConfirm } from '@/composables/useDeleteConfirm';
 
 const { can } = usePermission();
 
@@ -26,7 +26,7 @@ const props = defineProps({
 });
 
 const toast = useToast();
-const confirm = useConfirm();
+const { confirmDelete } = useDeleteConfirm();
 const page = usePage();
 
 watch(
@@ -101,13 +101,13 @@ const formatDateTime = (value) => (value
 const statusColor = { lunas: 'green', hutang: 'yellow', keep: 'purple' };
 
 const deleteSale = async (row) => {
-    const ok = await confirm.confirm({
+    await confirmDelete({
+        url: route('transaksi.penjualan.destroy', row.id),
         title: `Hapus ${row.invoice}?`,
         message: 'Stok akan dikembalikan & mutasi terkait dihapus. Tindakan ini permanen.',
         confirmLabel: 'Hapus',
+        options: { preserveScroll: true },
     });
-    if (!ok) return;
-    router.delete(route('transaksi.penjualan.destroy', row.id), { preserveScroll: true });
 };
 
 const columns = [

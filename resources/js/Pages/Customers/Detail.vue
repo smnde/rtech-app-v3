@@ -8,7 +8,7 @@ import AppBadge from '@/Components/UI/AppBadge.vue';
 import AppCard from '@/Components/UI/AppCard.vue';
 import AppDropdown from '@/Components/UI/AppDropdown.vue';
 import { usePermission } from '@/composables/usePermission';
-import { useConfirm } from '@/composables/useConfirm';
+import { useDeleteConfirm } from '@/composables/useDeleteConfirm';
 import { waLink } from '@/lib/whatsapp';
 
 const props = defineProps({
@@ -18,7 +18,7 @@ const props = defineProps({
 });
 
 const { can } = usePermission();
-const confirm = useConfirm();
+const { confirmDelete } = useDeleteConfirm();
 
 const NOTE_TYPES = {
     hutang:  { label: 'Hutang',  color: 'red' },
@@ -63,13 +63,13 @@ const toggleNoteStatus = (note) => {
 };
 
 const deleteNote = async (note) => {
-    const ok = await confirm.confirm({
+    await confirmDelete({
+        url: route('customers.notes.destroy', [props.customer.id, note.id]),
         title: 'Hapus catatan?',
         message: 'Catatan ini akan dihapus permanen.',
         confirmLabel: 'Hapus',
+        options: { preserveScroll: true },
     });
-    if (!ok) return;
-    router.delete(route('customers.notes.destroy', [props.customer.id, note.id]), { preserveScroll: true });
 };
 
 const TRANSACTION_STATUS = {

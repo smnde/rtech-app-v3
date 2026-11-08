@@ -11,7 +11,7 @@ import AppTable from '@/Components/UI/AppTable.vue';
 import AppActionDrawer from '@/Components/UI/AppActionDrawer.vue';
 import CategoryFormModal from '@/Components/Categories/CategoryFormModal.vue';
 import { useToast } from '@/composables/useToast';
-import { useConfirm } from '@/composables/useConfirm';
+import { useDeleteConfirm } from '@/composables/useDeleteConfirm';
 
 const { can } = usePermission();
 
@@ -21,7 +21,7 @@ const props = defineProps({
 });
 
 const toast   = useToast();
-const confirm = useConfirm();
+const { confirmDelete } = useDeleteConfirm();
 const page    = usePage();
 
 watch(
@@ -73,13 +73,13 @@ const handleSubmit = (payload) => {
 };
 
 const handleDelete = async (cat) => {
-    const ok = await confirm.confirm({
+    await confirmDelete({
+        url: route('master.category.destroy', cat.id),
         title: 'Hapus kategori?',
         message: `Kategori "${cat.name}" akan dihapus permanen.`,
         confirmLabel: 'Hapus',
+        options: { preserveScroll: true },
     });
-    if (!ok) return;
-    router.delete(route('master.category.destroy', cat.id), { preserveScroll: true });
 };
 
 // Mobile action drawer

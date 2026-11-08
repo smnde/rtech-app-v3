@@ -15,6 +15,7 @@ use App\Models\StockMovement;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Support\CashFlowRecorder;
+use App\Support\LikePattern;
 use App\Support\StockItem;
 use App\Support\StockMovementRecorder;
 use Illuminate\Contracts\Auth\Authenticatable;
@@ -38,7 +39,7 @@ class PurchasesController extends Controller
 
         $purchases = Purchase::query()
             ->with(['supplier:id,name', 'customer:id,name'])
-            ->when($request->search, fn ($query, $search) => $query->where('invoice', 'like', "%{$search}%"))
+            ->when($request->search, fn ($query, $search) => $query->where('invoice', 'like', LikePattern::contains($search)))
             ->when($request->filled('status'), fn ($query) => $query->where('payment_status', $request->string('status')))
             ->when($request->filled('order_status'), fn ($query) => $query->where('status', $request->string('order_status')))
             ->when($filterByDate, fn ($query) => $query
@@ -216,7 +217,7 @@ class PurchasesController extends Controller
             }
 
             if ($status === 'done') {
-                $this->applyStockIn($lines, $request->user(), $purchase->invoice, $trxAt?->toDateTimeString());
+                $this->applyStockIn($lines, $purchase->user, $purchase->invoice, $trxAt?->toDateTimeString());
             }
 
             if ($data['payment_status'] === 'lunas' && $total > 0) {
@@ -261,7 +262,7 @@ class PurchasesController extends Controller
         abort_unless($purchase->supplier_id, 404);
 
         if ($purchase->status !== 'done') {
-            DB::transaction(function () use ($purchase, $request) {
+            DB::transaction(function () use ($purchase) {
                 $purchase->update(['status' => 'done']);
 
                 $purchase->load('details');
@@ -270,7 +271,7 @@ class PurchasesController extends Controller
                     'qty' => (int) $detail->qty,
                 ])->all();
 
-                $this->applyStockIn($lines, $request->user(), $purchase->invoice);
+                $this->applyStockIn($lines, $purchase->user, $purchase->invoice);
             });
         }
 

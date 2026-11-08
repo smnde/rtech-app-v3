@@ -15,7 +15,7 @@ import AppDateRangePicker from '@/Components/UI/AppDateRangePicker.vue';
 import AppActionDrawer from '@/Components/UI/AppActionDrawer.vue';
 import AppConfirmModal from '@/Components/UI/AppConfirmModal.vue';
 import { useToast } from '@/composables/useToast';
-import { useConfirm } from '@/composables/useConfirm';
+import { useDeleteConfirm } from '@/composables/useDeleteConfirm';
 
 const { can } = usePermission();
 
@@ -25,7 +25,7 @@ const props = defineProps({
 });
 
 const toast = useToast();
-const confirm = useConfirm();
+const { confirmDelete } = useDeleteConfirm();
 const page = usePage();
 
 watch(
@@ -115,13 +115,13 @@ const orderStatusColor = { ordered: 'blue', pending: 'yellow', done: 'green' };
 const orderStatusLabel = { ordered: 'Ordered', pending: 'Pending', done: 'Done' };
 
 const deletePurchase = async (row) => {
-    const ok = await confirm.confirm({
+    await confirmDelete({
+        url: route('transaksi.pembelian.destroy', row.id),
         title: `Hapus ${row.invoice}?`,
         message: 'Stok akan dikembalikan & mutasi terkait dihapus. Tindakan ini permanen.',
         confirmLabel: 'Hapus',
+        options: { preserveScroll: true },
     });
-    if (!ok) return;
-    router.delete(route('transaksi.pembelian.destroy', row.id), { preserveScroll: true });
 };
 
 // Mobile action drawer

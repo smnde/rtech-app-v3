@@ -14,7 +14,7 @@ import AppFilterModal from '@/Components/UI/AppFilterModal.vue';
 import AppActionDrawer from '@/Components/UI/AppActionDrawer.vue';
 import CustomerFormModal from '@/Components/Customers/CustomerFormModal.vue';
 import { useToast } from '@/composables/useToast';
-import { useConfirm } from '@/composables/useConfirm';
+import { useDeleteConfirm } from '@/composables/useDeleteConfirm';
 import { waLink } from '@/lib/whatsapp';
 
 const { can } = usePermission();
@@ -25,7 +25,7 @@ const props = defineProps({
 });
 
 const toast   = useToast();
-const confirm = useConfirm();
+const { confirmDelete } = useDeleteConfirm();
 const page    = usePage();
 
 watch(
@@ -119,13 +119,13 @@ const handleSubmit = (payload) => {
 };
 
 const handleDelete = async (item) => {
-    const ok = await confirm.confirm({
+    await confirmDelete({
+        url: route('customers.destroy', item.id),
         title: 'Hapus customer?',
         message: `Customer "${item.name}" akan dihapus permanen.`,
         confirmLabel: 'Hapus',
+        options: { preserveScroll: true },
     });
-    if (!ok) return;
-    router.delete(route('customers.destroy', item.id), { preserveScroll: true });
 };
 
 // Mobile action drawer

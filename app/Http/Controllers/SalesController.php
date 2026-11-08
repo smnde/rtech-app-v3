@@ -13,6 +13,7 @@ use App\Models\SalesDetail;
 use App\Models\StockMovement;
 use App\Models\User;
 use App\Support\CashFlowRecorder;
+use App\Support\LikePattern;
 use App\Support\StockItem;
 use App\Support\StockMovementRecorder;
 use Illuminate\Http\RedirectResponse;
@@ -35,7 +36,7 @@ class SalesController extends Controller
 
         $sales = Sale::query()
             ->with('customer:id,name')
-            ->when($request->search, fn ($query, $search) => $query->where('invoice', 'like', "%{$search}%"))
+            ->when($request->search, fn ($query, $search) => $query->where('invoice', 'like', LikePattern::contains($search)))
             ->when($request->filled('status'), fn ($query) => $query->where('payment_status', $request->string('status')))
             ->when($filterByDate, fn ($query) => $query
                 ->where('created_at', '>=', "{$from} 00:00:00")
@@ -247,7 +248,7 @@ class SalesController extends Controller
                 $stockItem->decrement('stock', $qty);
 
                 $status = $isBonus ? 'BONUS' : ($isDebt ? 'HUTANG' : 'TERJUAL');
-                StockMovementRecorder::record($stockItem, 'out', $qty, $stockBefore, $status, $request->user(), $sale->invoice, $trxAt?->toDateTimeString());
+                StockMovementRecorder::record($stockItem, 'out', $qty, $stockBefore, $status, $sale->user, $sale->invoice, $trxAt?->toDateTimeString());
             }
 
             $cashInAmount = $data['payment_status'] === 'keep' ? (float) ($data['dp_amount'] ?? 0) : $total;

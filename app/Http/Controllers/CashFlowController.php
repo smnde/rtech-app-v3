@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\CashFlow;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -15,6 +16,7 @@ class CashFlowController extends Controller
         'SALDO_AWAL' => 'Saldo Awal',
         'SETOR' => 'Setor Kas',
         'TARIK' => 'Tarik Kas',
+        'BIAYA' => 'Biaya Operasional',
         'KOREKSI' => 'Koreksi',
         'LAIN' => 'Lain-lain',
     ];
@@ -61,6 +63,7 @@ class CashFlowController extends Controller
                 'description' => $flow->description,
                 'amount' => (float) $flow->amount,
                 'flow_date' => $flow->flow_date->toDateString(),
+                'user_id' => $flow->user_id,
                 'user_name' => $flow->user?->name,
             ]),
             'summary' => [
@@ -69,6 +72,7 @@ class CashFlowController extends Controller
                 'period_out' => $periodOut,
             ],
             'categories' => self::CATEGORIES,
+            'users' => User::query()->orderBy('name')->get(['id', 'name']),
             'filters' => [
                 'from' => $from,
                 'to' => $to,
@@ -85,9 +89,10 @@ class CashFlowController extends Controller
             'description' => ['required', 'string', 'max:255'],
             'amount' => ['required', 'numeric', 'min:1'],
             'flow_date' => ['required', 'date'],
+            'user_id' => ['required', 'integer', 'exists:users,id'],
         ]);
 
-        CashFlow::create([...$data, 'user_id' => $request->user()->id]);
+        CashFlow::create($data);
 
         return back()->with('success', 'Mutasi kas berhasil dicatat.');
     }
@@ -100,6 +105,7 @@ class CashFlowController extends Controller
             'description' => ['required', 'string', 'max:255'],
             'amount' => ['required', 'numeric', 'min:1'],
             'flow_date' => ['required', 'date'],
+            'user_id' => ['required', 'integer', 'exists:users,id'],
         ]);
 
         $cashFlow->update($data);

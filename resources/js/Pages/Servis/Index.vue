@@ -18,7 +18,7 @@ import ServisConfirmModal from '@/Components/Servis/ServisConfirmModal.vue';
 import ServisStatusModal from '@/Components/Servis/ServisStatusModal.vue';
 import { usePermission } from '@/composables/usePermission';
 import { useToast } from '@/composables/useToast';
-import { useConfirm } from '@/composables/useConfirm';
+import { useDeleteConfirm } from '@/composables/useDeleteConfirm';
 
 const props = defineProps({
     reparations: { type: Object, required: true },
@@ -27,9 +27,9 @@ const props = defineProps({
     filters:     { type: Object, default: () => ({}) },
 });
 
-const { can } = usePermission();
+const { can, hasRole } = usePermission();
 const toast = useToast();
-const confirm = useConfirm();
+const { confirmDelete } = useDeleteConfirm();
 const page = usePage();
 
 watch(
@@ -234,13 +234,13 @@ const createCustomer = (payload, done) => {
 };
 
 const handleDelete = async (item) => {
-    const ok = await confirm.confirm({
+    await confirmDelete({
+        url: route('servis.destroy', item.id),
         title: 'Hapus servis?',
         message: `Servis "${item.item_name}" akan dihapus.`,
         confirmLabel: 'Hapus',
+        options: { preserveScroll: true },
     });
-    if (!ok) return;
-    router.delete(route('servis.destroy', item.id), { preserveScroll: true });
 };
 
 const cardClass = 'rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900';
@@ -322,7 +322,7 @@ const getDrawerActions = (item) => {
     }
 
     // Divider before delete
-    if (can('delete reparation')) {
+    if (hasRole('SYSADMIN')) {
         actions.push({ divider: true });
 
         actions.push({
@@ -450,7 +450,7 @@ const getDrawerActions = (item) => {
                                 <AppButton v-if="can('edit reparation')" variant="ghost" size="sm" icon-only title="Edit" @click="openEdit(item)">
                                     <Pencil class="h-4 w-4" />
                                 </AppButton>
-                                <AppButton v-if="can('delete reparation')" variant="ghost" size="sm" icon-only title="Hapus"
+                                <AppButton v-if="hasRole('SYSADMIN')" variant="ghost" size="sm" icon-only title="Hapus"
                                     class="hover:!text-red-500 dark:hover:!text-red-400" @click="handleDelete(item)">
                                     <Trash2 class="h-4 w-4" />
                                 </AppButton>

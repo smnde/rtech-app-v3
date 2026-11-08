@@ -18,7 +18,7 @@ import { useToast } from '@/composables/useToast';
 import { useStockFilter } from '@/composables/useStockFilter';
 import AppSortToggle from '@/Components/UI/AppSortToggle.vue';
 import AppFilterModal from '@/Components/UI/AppFilterModal.vue';
-import { useConfirm } from '@/composables/useConfirm';
+import { useDeleteConfirm } from '@/composables/useDeleteConfirm';
 import { useItemPriceTag } from '@/composables/useItemPriceTag';
 
 const { can } = usePermission();
@@ -31,7 +31,7 @@ const props = defineProps({
 });
 
 const toast   = useToast();
-const confirm = useConfirm();
+const { confirmDelete } = useDeleteConfirm();
 const page    = usePage();
 
 watch(
@@ -124,13 +124,13 @@ const doExport = () => {
 };
 
 const handleDelete = async (item) => {
-    const ok = await confirm.confirm({
+    await confirmDelete({
+        url: route('stock.laptop.destroy', item.id),
         title: 'Hapus laptop?',
         message: `Laptop "${item.name}" akan dihapus permanen.`,
         confirmLabel: 'Hapus',
+        options: { preserveScroll: true },
     });
-    if (!ok) return;
-    router.delete(route('stock.laptop.destroy', item.id), { preserveScroll: true });
 };
 
 const formatRupiah = (value) =>

@@ -14,20 +14,22 @@ import AppDateRangePicker from '@/Components/UI/AppDateRangePicker.vue';
 import AppDropdown from '@/Components/UI/AppDropdown.vue';
 import AppFilterModal from '@/Components/UI/AppFilterModal.vue';
 import AppCurrencyInput from '@/Components/UI/AppCurrencyInput.vue';
+import AppDatePicker from '@/Components/UI/AppDatePicker.vue';
 import { usePermission } from '@/composables/usePermission';
 import { useToast } from '@/composables/useToast';
-import { useConfirm } from '@/composables/useConfirm';
+import { useDeleteConfirm } from '@/composables/useDeleteConfirm';
 
 const props = defineProps({
     flows:      { type: Object, required: true },
     summary:    { type: Object, required: true },
     categories: { type: Object, default: () => ({}) },
+    users:      { type: Array, default: () => [] },
     filters:    { type: Object, default: () => ({}) },
 });
 
 const { can } = usePermission();
 const toast = useToast();
-const confirm = useConfirm();
+const { confirmDelete } = useDeleteConfirm();
 const page = usePage();
 
 watch(
@@ -84,15 +86,21 @@ watch(() => filterForm.period, applyFilter, { deep: true });
 const showModal = ref(false);
 const selected = ref(null);
 const saving = ref(false);
+const currentUserId = page.props.auth?.user?.id ?? null;
 const form = reactive({
     type: 'in',
     category: '',
     description: '',
     amount: '',
     flow_date: todayDate,
+    user_id: currentUserId,
 });
 const errors = ref({});
 
+const userOptions = computed(() => [
+    { id: '', label: 'Pilih user' },
+    ...props.users.map((user) => ({ id: user.id, label: user.name })),
+]);
 const categoryOptions = computed(() => [
     { id: '', label: 'Pilih kategori' },
     ...Object.entries(props.categories).map(([id, label]) => ({ id, label })),
@@ -100,7 +108,7 @@ const categoryOptions = computed(() => [
 
 const openCreate = () => {
     selected.value = null;
-    Object.assign(form, { type: 'in', category: '', description: '', amount: '', flow_date: todayDate });
+    Object.assign(form, { type: 'in', category: '', description: '', amount: '', flow_date: todayDate, user_id: currentUserId });
     errors.value = {};
     showModal.value = true;
 };
@@ -113,6 +121,7 @@ const openEdit = (item) => {
         description: item.description,
         amount: item.amount,
         flow_date: item.flow_date,
+        user_id: item.user_id ?? currentUserId,
     });
     errors.value = {};
     showModal.value = true;
@@ -130,6 +139,7 @@ const validate = () => {
     if (!form.description.trim()) e.description = 'Keterangan wajib diisi.';
     if (!form.amount || Number(form.amount) < 1) e.amount = 'Nominal wajib diisi.';
     if (!form.flow_date) e.flow_date = 'Tanggal wajib diisi.';
+    if (!form.user_id) e.user_id = 'User wajib dipilih.';
     errors.value = e;
     return Object.keys(e).length === 0;
 };
@@ -143,6 +153,7 @@ const submit = () => {
         description: form.description,
         amount:      Number(form.amount),
         flow_date:   form.flow_date,
+        user_id:     form.user_id,
     };
     const options = {
         preserveScroll: true,
@@ -159,13 +170,13 @@ const submit = () => {
 };
 
 const handleDelete = async (item) => {
-    const ok = await confirm.confirm({
+    await confirmDelete({
+        url: route('cashflow.destroy', item.id),
         title: 'Hapus mutasi kas?',
         message: `"${item.description}" akan dihapus permanen.`,
         confirmLabel: 'Hapus',
+        options: { preserveScroll: true },
     });
-    if (!ok) return;
-    router.delete(route('cashflow.destroy', item.id), { preserveScroll: true });
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -410,6 +421,13 @@ const inputClass = (hasError) => [
                     <p v-if="errors.category" class="mt-1.5 text-xs text-red-500">{{ errors.category }}</p>
                 </div>
 
+                <!-- User -->
+                <div>
+                    <label :class="labelClass">Dicatat oleh <span class="text-red-500">*</span></label>
+                    <AppDropdown v-model="form.user_id" :options="userOptions" placeholder="Pilih user" />
+                    <p v-if="errors.user_id" class="mt-1.5 text-xs text-red-500">{{ errors.user_id }}</p>
+                </div>
+
                 <!-- Keterangan -->
                 <div>
                     <label :class="labelClass">Keterangan <span class="text-red-500">*</span></label>
@@ -432,11 +450,7 @@ const inputClass = (hasError) => [
                 <!-- Tanggal -->
                 <div>
                     <label :class="labelClass">Tanggal <span class="text-red-500">*</span></label>
-                    <input
-                        v-model="form.flow_date"
-                        type="date"
-                        :class="inputClass(!!errors.flow_date)"
-                    />
+                    <AppDatePicker v-model="form.flow_date" :error="!!errors.flow_date" placeholder="Pilih tanggal" />
                     <p v-if="errors.flow_date" class="mt-1.5 text-xs text-red-500">{{ errors.flow_date }}</p>
                 </div>
             </form>

@@ -9,7 +9,7 @@ const props = defineProps({
     profile: { type: Object, required: true },
 });
 
-const nameForm = useForm({ name: props.profile.name });
+const nameForm = useForm({ name: props.profile.name, username: props.profile.username });
 const passwordForm = useForm({
     current_password: '',
     password: '',
@@ -43,11 +43,11 @@ const submitPassword = () => {
             <div class="scrollbar-styled flex-1 min-h-0 overflow-auto space-y-6">
                 <AppCard>
                     <form @submit.prevent="submitName" class="space-y-4 max-w-md">
-                        <h2 class="text-base font-semibold text-gray-900 dark:text-white">Nama</h2>
+                        <h2 class="text-base font-semibold text-gray-900 dark:text-white">Akun</h2>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Username</label>
-                            <input :value="profile.username" type="text" disabled
-                                class="w-full rounded-lg border border-gray-300 dark:border-gray-700 px-3.5 py-2.5 text-sm bg-gray-100 dark:bg-gray-800 text-gray-500" />
+                            <input v-model="nameForm.username" type="text" :class="inputClass(nameForm.errors.username)" />
+                            <p v-if="nameForm.errors.username" class="mt-1.5 text-xs text-red-500">{{ nameForm.errors.username }}</p>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Nama</label>
@@ -55,7 +55,7 @@ const submitPassword = () => {
                             <p v-if="nameForm.errors.name" class="mt-1.5 text-xs text-red-500">{{ nameForm.errors.name }}</p>
                         </div>
                         <div class="flex justify-end">
-                            <AppButton variant="primary" size="sm" type="submit" :loading="nameForm.processing">Simpan Nama</AppButton>
+                            <AppButton variant="primary" size="sm" type="submit" :loading="nameForm.processing">Simpan</AppButton>
                         </div>
                     </form>
                 </AppCard>

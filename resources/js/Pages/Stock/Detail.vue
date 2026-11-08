@@ -11,7 +11,7 @@ import ItemLogCard from '@/Components/ItemLog/ItemLogCard.vue';
 import ItemLogForm from '@/Components/ItemLog/ItemLogForm.vue';
 import { useToast } from '@/composables/useToast';
 import { usePermission } from '@/composables/usePermission';
-import { useConfirm } from '@/composables/useConfirm';
+import { useDeleteConfirm } from '@/composables/useDeleteConfirm';
 import { useItemPriceTag } from '@/composables/useItemPriceTag';
 
 const props = defineProps({
@@ -41,7 +41,7 @@ const handleEditSubmit = (payload) => {
 
 const page = usePage();
 const toast = useToast();
-const confirm = useConfirm();
+const { confirmDelete } = useDeleteConfirm();
 const { addItemToPriceTag } = useItemPriceTag();
 
 const printPriceTag = () => {
@@ -82,13 +82,13 @@ const submitLog = (payload) => {
 };
 
 const deleteLog = async (log) => {
-    const ok = await confirm.confirm({
+    await confirmDelete({
+        url: route('item-logs.destroy', log.id),
         title: 'Hapus log aktivitas?',
         message: 'Log ini akan dihapus permanen.',
         confirmLabel: 'Hapus',
+        options: { preserveScroll: true },
     });
-    if (!ok) return;
-    router.delete(route('item-logs.destroy', log.id), { preserveScroll: true });
 };
 
 const moduleLabels = { laptop: 'Laptop', gadget: 'Gadget', aksesoris: 'Aksesoris', sparepart: 'Sparepart' };

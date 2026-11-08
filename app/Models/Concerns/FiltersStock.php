@@ -2,6 +2,7 @@
 
 namespace App\Models\Concerns;
 
+use App\Support\LikePattern;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 
@@ -26,9 +27,10 @@ trait FiltersStock
     public function scopeFilterFromRequest(Builder $query, Request $request): Builder
     {
         $query->when($request->search, function (Builder $query, string $search) {
-            $query->where(function (Builder $query) use ($search) {
+            $pattern = LikePattern::contains($search);
+            $query->where(function (Builder $query) use ($pattern) {
                 foreach ($this->searchableColumns() as $column) {
-                    $query->orWhere($column, 'like', "%{$search}%");
+                    $query->orWhere($column, 'like', $pattern);
                 }
             });
         });

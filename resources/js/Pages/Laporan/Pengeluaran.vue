@@ -18,7 +18,6 @@ const stats = computed(() => [
 
 const columns = [
     { key: 'date',        label: 'Tanggal' },
-    { key: 'category',    label: 'Kategori' },
     { key: 'description', label: 'Keterangan' },
     { key: 'amount',      label: 'Nominal' },
     { key: 'user_name',   label: 'Dicatat oleh' },

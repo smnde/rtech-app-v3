@@ -9,14 +9,14 @@ import AppBadge from '@/Components/UI/AppBadge.vue';
 import AppTable from '@/Components/UI/AppTable.vue';
 import AppModal from '@/Components/UI/AppModal.vue';
 import { useToast } from '@/composables/useToast';
-import { useConfirm } from '@/composables/useConfirm';
+import { useDeleteConfirm } from '@/composables/useDeleteConfirm';
 
 const props = defineProps({
     roles: { type: Array, required: true },
 });
 
 const toast   = useToast();
-const confirm = useConfirm();
+const { confirmDelete } = useDeleteConfirm();
 const page    = usePage();
 
 watch(
@@ -52,13 +52,13 @@ const submit = () => {
 };
 
 const handleDelete = async (role) => {
-    const ok = await confirm.confirm({
+    await confirmDelete({
+        url: route('roles.destroy', role.id),
         title: 'Hapus role?',
         message: `Role "${role.name}" akan dihapus permanen.`,
         confirmLabel: 'Hapus',
+        options: { preserveScroll: true },
     });
-    if (!ok) return;
-    router.delete(route('roles.destroy', role.id), { preserveScroll: true });
 };
 </script>
 

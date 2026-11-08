@@ -6,6 +6,7 @@ import MobileBottomNav from '@/Components/MobileBottomNav.vue';
 import MobileSidebarDrawer from '@/Components/MobileSidebarDrawer.vue';
 import AppToast from '@/Components/UI/AppToast.vue';
 import AppConfirmModal from '@/Components/UI/AppConfirmModal.vue';
+import ProfileModal from '@/Components/ProfileModal.vue';
 import AppFab from '@/Components/UI/AppFab.vue';
 
 defineProps({
@@ -65,6 +66,7 @@ const mobileMenuOpen = ref(false);
 
         <AppToast />
         <AppConfirmModal />
+        <ProfileModal />
 
     </div>
 </template>

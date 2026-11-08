@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\Category\CategoryRequest;
 use App\Models\Category;
+use App\Support\LikePattern;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,7 +15,7 @@ class CategoriesController extends Controller
     public function index(Request $request): Response
     {
         $categories = Category::query()
-            ->when($request->search, fn ($query, $search) => $query->where('name', 'like', "%{$search}%"))
+            ->when($request->search, fn ($query, $search) => $query->where('name', 'like', LikePattern::contains($search)))
             ->orderBy('name')
             ->paginate(10)
             ->withQueryString()

@@ -3,8 +3,10 @@ import { ref, watch } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { X, ChevronDown, LogOut } from 'lucide-vue-next';
 import { menuItems as allMenuItems, filterMenuByPermission } from '@/config/menu';
+import { useProfileModal } from '@/composables/useProfileModal';
 
 const page = usePage();
+const profileModal = useProfileModal();
 const menuItems = filterMenuByPermission(
     allMenuItems,
     page.props.auth?.permissions ?? [],
@@ -19,6 +21,11 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['close']);
+
+const openProfile = () => {
+    emit('close');
+    profileModal.open();
+};
 
 const openMenus = ref({});
 
@@ -155,18 +162,25 @@ watch(() => page.url, () => emit('close'));
 
                 <!-- User + logout -->
                 <div class="border-t border-gray-200 dark:border-gray-800 p-3">
-                    <div class="flex items-center gap-3 rounded-lg px-3 py-2">
-                        <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/50 text-primary-700 dark:text-primary-300 font-semibold text-sm">
-                            {{ page.props.auth?.user?.name?.charAt(0)?.toUpperCase() ?? 'U' }}
-                        </div>
-                        <div class="flex-1 min-w-0">
-                            <p class="truncate text-sm font-medium text-gray-900 dark:text-white">
-                                {{ page.props.auth?.user?.name ?? 'User' }}
-                            </p>
-                            <p class="truncate text-xs text-gray-500 dark:text-gray-400">
-                                @{{ page.props.auth?.user?.username ?? '' }}
-                            </p>
-                        </div>
+                    <div class="flex items-center gap-1 rounded-lg">
+                        <button
+                            type="button"
+                            class="group flex flex-1 min-w-0 items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                            title="Ubah profil"
+                            @click="openProfile"
+                        >
+                            <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/50 text-primary-700 dark:text-primary-300 font-semibold text-sm">
+                                {{ page.props.auth?.user?.name?.charAt(0)?.toUpperCase() ?? 'U' }}
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="truncate text-sm font-medium text-gray-900 dark:text-white">
+                                    {{ page.props.auth?.user?.name ?? 'User' }}
+                                </p>
+                                <p class="truncate text-xs text-gray-500 dark:text-gray-400">
+                                    @{{ page.props.auth?.user?.username ?? '' }}
+                                </p>
+                            </div>
+                        </button>
                         <Link
                             :href="route('logout')"
                             method="post"
