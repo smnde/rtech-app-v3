@@ -18,7 +18,7 @@ class ReportsController extends Controller
         [$from, $to] = $this->period($request);
 
         $sales = Sale::query()
-            ->with(['details' => fn ($q) => $q->where('qty', '>', 0)->with('item:id,name')])
+            ->with(['details' => fn ($q) => $q->where('qty', '>', 0)->where('subtotal', '>', 0)->with('item:id,name')])
             ->where('created_at', '>=', "{$from} 00:00:00")
             ->where('created_at', '<=', "{$to} 23:59:59")
             ->latest()
