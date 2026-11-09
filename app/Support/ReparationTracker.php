@@ -23,17 +23,28 @@ class ReparationTracker
         ]);
     }
 
-    public function changeStatus(Reparation $reparation, User $user, string $to, ?string $note = null, ?bool $paid = null): void
+    /**
+     * @param  User  $user  petugas yang mengubah status (tercatat di log).
+     * @param  User|null  $cashier  kasir penerima uang (tercatat di kas); null = pakai $user.
+     */
+    public function changeStatus(Reparation $reparation, User $user, string $to, ?string $note = null, ?bool $paid = null, ?int $handedOverBy = null, ?User $cashier = null): void
     {
         $from = $reparation->status;
         if ($from === $to) {
             return;
         }
 
-        DB::transaction(function () use ($reparation, $user, $from, $to, $note, $paid) {
-            $reparation->update(['status' => $to]);
+        DB::transaction(function () use ($reparation, $user, $from, $to, $note, $paid, $handedOverBy, $cashier) {
+            $updates = ['status' => $to];
+
+            // Kasir yang menyerahkan unit ke customer dicatat saat TAKEN.
+            if ($to === 'TAKEN' && $handedOverBy !== null) {
+                $updates['handed_over_by'] = $handedOverBy;
+            }
+
+            $reparation->update($updates);
             $this->record($reparation, $user, ReparationLog::EVENT_STATUS_CHANGED, $from, $to, $note);
-            $this->syncPayment($reparation, $user, $to, $paid);
+            $this->syncPayment($reparation, $cashier ?? $user, $to, $paid);
         });
     }
 

@@ -11,6 +11,7 @@ use App\Models\Customer;
 use App\Models\Reparation;
 use App\Models\ReparationLog;
 use App\Models\ReparationStage;
+use App\Models\User;
 use App\Support\CashFlowRecorder;
 use App\Support\LikePattern;
 use App\Support\ReparationPayment;
@@ -53,6 +54,7 @@ class ReparationsController extends Controller
             'reparations' => ReparationsResource::collection($reparations),
             'customers' => Customer::query()->orderBy('name')->get(['id', 'name', 'phone']),
             'statuses' => Reparation::STATUSES,
+            'users' => User::query()->orderBy('name')->get(['id', 'name']),
             'filters' => [
                 'search' => $request->search,
                 'status' => $request->status,
@@ -88,11 +90,12 @@ class ReparationsController extends Controller
 
     public function show(Reparation $reparation): Response
     {
-        $reparation->load(['customer:id,name,phone', 'stages.items', 'logs.user:id,name']);
+        $reparation->load(['customer:id,name,phone', 'stages.items', 'logs.user:id,name', 'handedOverBy:id,name']);
 
         return inertia('Servis/Detail', [
             'reparation' => (new ReparationsResource($reparation))->resolve(),
             'statuses' => Reparation::STATUSES,
+            'users' => User::query()->orderBy('name')->get(['id', 'name']),
         ]);
     }
 
@@ -172,6 +175,7 @@ class ReparationsController extends Controller
     public function changeStatus(ChangeReparationStatusRequest $request, Reparation $reparation, ReparationTracker $tracker): RedirectResponse
     {
         $paymentStatus = $request->validated('payment_status');
+        $cashierId = $request->validated('cashier_id') ?? $request->validated('handed_over_by');
 
         $tracker->changeStatus(
             $reparation,
@@ -179,6 +183,8 @@ class ReparationsController extends Controller
             $request->validated('status'),
             $request->validated('note'),
             $paymentStatus === null ? null : $paymentStatus === 'paid',
+            $request->validated('handed_over_by'),
+            $cashierId === null ? null : User::find($cashierId),
         );
 
         return back()->with('success', 'Status servis diperbarui.');
@@ -194,7 +200,16 @@ class ReparationsController extends Controller
             return back()->with('error', 'Servis belum selesai, belum bisa dilunasi.');
         }
 
-        $recorded = ReparationPayment::settle($reparation, true, $request->user());
+        $data = $request->validate([
+            'cashier_id' => ['nullable', 'integer', 'exists:users,id'],
+        ]);
+
+        // Kasir penerima uang yang dipilih; fallback ke user yang login.
+        $cashier = filled($data['cashier_id'] ?? null)
+            ? User::findOrFail($data['cashier_id'])
+            : $request->user();
+
+        $recorded = ReparationPayment::settle($reparation, true, $cashier);
 
         return back()->with('success', $recorded
             ? 'Pembayaran servis dicatat ke kas.'

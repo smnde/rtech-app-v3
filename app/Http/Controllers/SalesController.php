@@ -253,18 +253,44 @@ class SalesController extends Controller
 
             $cashInAmount = $data['payment_status'] === 'keep' ? (float) ($data['dp_amount'] ?? 0) : $total;
             if ($cashInAmount > 0) {
-                CashFlowRecorder::record(
-                    'in',
-                    'PENJUALAN',
-                    $data['payment_status'] === 'keep'
-                        ? "DP {$sale->invoice}"
-                        : "Penjualan {$sale->invoice}",
-                    $cashInAmount,
-                    $sale,
-                    $sale->user,
-                    $sale->invoice,
-                    $trxAt?->toDateString(),
-                );
+                $isKeep = $data['payment_status'] === 'keep';
+
+                if ($isKeep) {
+                    // DP bukan per item, tetap satu baris.
+                    CashFlowRecorder::record(
+                        'in',
+                        'PENJUALAN',
+                        "DP {$sale->invoice}",
+                        $cashInAmount,
+                        $sale,
+                        $sale->user,
+                        $sale->invoice,
+                        $trxAt?->toDateString(),
+                    );
+                } else {
+                    // Rinci per item; baris dengan subtotal 0 dilewati.
+                    $sale->load('details.item');
+                    foreach ($sale->details as $detail) {
+                        $lineSubtotal = (float) $detail->subtotal;
+                        if ($lineSubtotal <= 0) {
+                            continue;
+                        }
+
+                        $label = $detail->item?->name ?? 'Item';
+                        $qty = (int) $detail->qty;
+
+                        CashFlowRecorder::record(
+                            'in',
+                            'PENJUALAN',
+                            "Penjualan {$sale->invoice} — {$label}".($qty > 1 ? " x{$qty}" : ''),
+                            $lineSubtotal,
+                            $sale,
+                            $sale->user,
+                            $sale->invoice,
+                            $trxAt?->toDateString(),
+                        );
+                    }
+                }
             }
 
             $activeCart = Cart::activeFor($request->user(), 'sale');

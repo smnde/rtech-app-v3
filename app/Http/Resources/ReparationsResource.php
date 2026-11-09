@@ -45,6 +45,8 @@ class ReparationsResource extends JsonResource
             'customer_id' => $this->customer_id,
             'customer_name' => $this->customer?->name,
             'customer_phone' => $this->customer?->phone,
+            'handed_over_by' => $this->handed_over_by,
+            'handed_over_by_name' => $this->whenLoaded('handedOverBy', fn () => $this->handedOverBy?->name),
             'created_at' => $this->created_at->toDateString(),
             'logs' => $this->whenLoaded('logs', fn () => $this->logs->map(fn ($log) => [
                 'event' => $log->event,

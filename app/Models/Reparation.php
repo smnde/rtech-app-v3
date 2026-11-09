@@ -5,11 +5,13 @@ namespace App\Models;
 use App\Models\Concerns\HasInvoiceNumber;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
 
 #[Fillable([
     'invoice',
     'customer_id',
     'user_id',
+    'handed_over_by',
     'item_name',
     'flag',
     'accessories',
@@ -69,6 +71,14 @@ class Reparation extends Model
         return $this->belongsTo(User::class);
     }
 
+    /**
+     * Kasir yang menyerahkan unit ke customer (saat TAKEN).
+     */
+    public function handedOverBy()
+    {
+        return $this->belongsTo(User::class, 'handed_over_by');
+    }
+
     public function logs()
     {
         return $this->hasMany(ReparationLog::class);
@@ -102,5 +112,24 @@ class Reparation extends Model
     public function isPaid(): bool
     {
         return $this->payment_status === 'paid';
+    }
+
+    /**
+     * Rincian biaya dari tahap yang dikonfirmasi (label + cost), biaya 0 dibuang.
+     *
+     * @return Collection<int, array{label: string, cost: float}>
+     */
+    public function confirmedItems(): Collection
+    {
+        $stages = $this->relationLoaded('stages')
+            ? $this->stages
+            : $this->stages()->with('items')->get();
+
+        return $stages
+            ->where('status', 'CONFIRMED')
+            ->flatMap(fn ($stage) => $stage->relationLoaded('items') ? $stage->items : $stage->items()->get())
+            ->map(fn ($item) => ['label' => $item->label, 'cost' => (float) $item->cost])
+            ->filter(fn ($item) => $item['cost'] > 0)
+            ->values();
     }
 }

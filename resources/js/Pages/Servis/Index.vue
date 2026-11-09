@@ -16,6 +16,8 @@ import AppActionDrawer from '@/Components/UI/AppActionDrawer.vue';
 import ServisFormModal from '@/Components/Servis/ServisFormModal.vue';
 import ServisConfirmModal from '@/Components/Servis/ServisConfirmModal.vue';
 import ServisStatusModal from '@/Components/Servis/ServisStatusModal.vue';
+import ServisSettleModal from '@/Components/Servis/ServisSettleModal.vue';
+import { servisConfirmedItems } from '@/composables/servisItems';
 import { usePermission } from '@/composables/usePermission';
 import { useToast } from '@/composables/useToast';
 import { useDeleteConfirm } from '@/composables/useDeleteConfirm';
@@ -24,6 +26,7 @@ const props = defineProps({
     reparations: { type: Object, required: true },
     customers:   { type: Array, default: () => [] },
     statuses:    { type: Array, default: () => [] },
+    users:       { type: Array, default: () => [] },
     filters:     { type: Object, default: () => ({}) },
 });
 
@@ -199,7 +202,30 @@ const openStatus = (item) => {
 const closeActionModals = () => {
     showConfirmModal.value = false;
     showStatusModal.value = false;
+    showSettleModal.value = false;
     actionTarget.value = null;
+};
+
+const showSettleModal = ref(false);
+const settleForm = ref({ status: 'TAKEN', mode: 'settle', note: null });
+
+const settleItems = computed(() => servisConfirmedItems(actionTarget.value?.stages));
+const settleTotal = computed(() => settleItems.value.reduce((sum, item) => sum + Number(item.cost ?? 0), 0));
+
+const submitSettle = (result) => {
+    saving.value = true;
+    router.patch(route('servis.status', actionTarget.value.id), {
+        status: settleForm.value.status,
+        note: settleForm.value.note,
+        handed_over_by: result.cashier,
+        cashier_id: result.cashier,
+        payment_status: result.paid ? 'paid' : 'unpaid',
+    }, {
+        preserveScroll: true,
+        onSuccess: () => closeActionModals(),
+        onError: (errors) => toast.error(Object.values(errors)[0] ?? 'Data tidak valid.'),
+        onFinish: () => { saving.value = false; },
+    });
 };
 
 const submitConfirm = (payload) => {
@@ -213,6 +239,21 @@ const submitConfirm = (payload) => {
 };
 
 const submitStatus = (payload) => {
+    // TAKEN selalu lewat modal rincian (butuh catat penyerah).
+    // DONE hanya lewat modal kalau belum lunas.
+    const needsSettleModal = payload.status === 'TAKEN'
+        || (payload.status === 'DONE' && actionTarget.value?.payment_status !== 'paid');
+
+    if (needsSettleModal) {
+        settleForm.value = {
+            status: payload.status,
+            mode: 'settle',
+            note: payload.note ?? null,
+        };
+        showStatusModal.value = false;
+        showSettleModal.value = true;
+        return;
+    }
     saving.value = true;
     router.patch(route('servis.status', actionTarget.value.id), payload, {
         preserveScroll: true,
@@ -437,7 +478,12 @@ const getDrawerActions = (item) => {
                             <span v-else class="text-sm text-gray-400">—</span>
                         </td>
                         <td class="px-5 py-3">
-                            <AppBadge :color="STATUS_COLOR[item.status] ?? 'gray'" size="sm">{{ item.status }}</AppBadge>
+                            <div class="flex items-center gap-1.5">
+                                <AppBadge :color="STATUS_COLOR[item.status] ?? 'gray'" size="sm">{{ item.status }}</AppBadge>
+                                <AppBadge :color="item.payment_status === 'paid' ? 'green' : 'gray'" size="sm" dot>
+                                    {{ item.payment_status === 'paid' ? 'Lunas' : 'Belum Lunas' }}
+                                </AppBadge>
+                            </div>
                         </td>
                         <td class="px-5 py-3">
                             <div class="flex items-center gap-1">
@@ -480,7 +526,12 @@ const getDrawerActions = (item) => {
                 >
                     <div class="flex items-center justify-between gap-2">
                         <p class="min-w-0 truncate text-sm font-semibold text-gray-900 dark:text-white">{{ item.item_name }}</p>
-                        <AppBadge :color="STATUS_COLOR[item.status] ?? 'gray'" size="sm">{{ item.status }}</AppBadge>
+                        <div class="flex shrink-0 items-center gap-1.5">
+                            <AppBadge :color="STATUS_COLOR[item.status] ?? 'gray'" size="sm">{{ item.status }}</AppBadge>
+                            <AppBadge :color="item.payment_status === 'paid' ? 'green' : 'gray'" size="sm" dot>
+                                {{ item.payment_status === 'paid' ? 'Lunas' : 'Belum Lunas' }}
+                            </AppBadge>
+                        </div>
                     </div>
                     <p class="mt-0.5 truncate text-xs text-gray-500">{{ item.customer_name }} · {{ item.invoice ?? '—' }}</p>
                     <div class="mt-1 flex items-center justify-between gap-2">
@@ -527,6 +578,20 @@ const getDrawerActions = (item) => {
         :saving="saving"
         @close="closeActionModals"
         @submit="submitStatus"
+    />
+
+    <ServisSettleModal
+        v-if="actionTarget"
+        :show="showSettleModal"
+        :status="settleForm.status"
+        mode="settle"
+        :already-paid="actionTarget?.payment_status === 'paid'"
+        :items="settleItems"
+        :total="settleTotal"
+        :users="users"
+        :saving="saving"
+        @close="closeActionModals"
+        @confirm="submitSettle"
     />
 
     <AppActionDrawer

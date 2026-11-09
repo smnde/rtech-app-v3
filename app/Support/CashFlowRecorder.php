@@ -43,27 +43,34 @@ final class CashFlowRecorder
     }
 
     /**
-     * Catat uang masuk servis, hanya sekali per invoice.
+     * Catat uang masuk servis, dirinci per biaya yang dikonfirmasi.
+     * Biaya 0 dilewati. Hanya sekali per invoice.
      *
      * @return bool true kalau mutasi baru tercatat.
      */
     public static function recordServiceIncome(Reparation $reparation, ?Authenticatable $user): bool
     {
-        $amount = (float) $reparation->total_price;
-
-        if ($amount <= 0 || self::existsForReference($reparation->invoice)) {
+        if (self::existsForReference($reparation->invoice)) {
             return false;
         }
 
-        self::record(
-            'in',
-            self::SERVICE_CATEGORY,
-            "Servis {$reparation->invoice}",
-            $amount,
-            $reparation,
-            $user,
-            $reparation->invoice,
-        );
+        $items = $reparation->confirmedItems();
+
+        if ($items->isEmpty()) {
+            return false;
+        }
+
+        foreach ($items as $item) {
+            self::record(
+                'in',
+                self::SERVICE_CATEGORY,
+                "Servis {$reparation->invoice} — {$item['label']}",
+                $item['cost'],
+                $reparation,
+                $user,
+                $reparation->invoice,
+            );
+        }
 
         return true;
     }

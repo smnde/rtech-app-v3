@@ -8,6 +8,7 @@ import AppBadge from '@/Components/UI/AppBadge.vue';
 import ServisConfirmModal from '@/Components/Servis/ServisConfirmModal.vue';
 import ServisStatusModal from '@/Components/Servis/ServisStatusModal.vue';
 import ServisSettleModal from '@/Components/Servis/ServisSettleModal.vue';
+import { servisConfirmedItems } from '@/composables/servisItems';
 import ServisReceiptModal from '@/Components/Servis/ServisReceiptModal.vue';
 import { usePermission } from '@/composables/usePermission';
 import { useToast } from '@/composables/useToast';
@@ -15,6 +16,7 @@ import { useToast } from '@/composables/useToast';
 const props = defineProps({
     reparation: { type: Object, required: true },
     statuses: { type: Array, default: () => [] },
+    users: { type: Array, default: () => [] },
 });
 
 const { can } = usePermission();
@@ -73,10 +75,17 @@ const submitConfirm = (payload) => {
 };
 
 const submitStatus = (payload) => {
-    // DONE / TAKEN wajib lewat modal rincian + status bayar.
-    // Kalau sudah lunas, tidak perlu tanya lagi (kas sudah tercatat sekali).
-    if ((payload.status === 'DONE' || payload.status === 'TAKEN') && props.reparation.payment_status !== 'paid') {
-        settleForm.value = { status: payload.status, note: payload.note ?? null, paid: false };
+    // TAKEN selalu lewat modal rincian (butuh catat penyerah).
+    // DONE hanya lewat modal kalau belum lunas (butuh pilih bayar/belum).
+    const needsSettleModal = payload.status === 'TAKEN'
+        || (payload.status === 'DONE' && props.reparation.payment_status !== 'paid');
+
+    if (needsSettleModal) {
+        settleForm.value = {
+            status: payload.status,
+            mode: 'settle',
+            note: payload.note ?? null,
+        };
         showStatus.value = false;
         showSettle.value = true;
         return;
@@ -92,7 +101,8 @@ const submitStatus = (payload) => {
 };
 
 const showSettle = ref(false);
-const settleForm = ref({ status: 'DONE', note: null, paid: false });
+const showMarkPaid = ref(false);
+const settleForm = ref({ status: 'DONE', mode: 'settle', note: null });
 
 const actionMenu = ref(false);
 const actionMenuRef = ref(null);
@@ -109,12 +119,14 @@ const runAction = (fn) => {
 onMounted(() => document.addEventListener('mousedown', onActionMenuOutside));
 onBeforeUnmount(() => document.removeEventListener('mousedown', onActionMenuOutside));
 
-const submitSettle = (paid) => {
+const submitSettle = (result) => {
     saving.value = true;
     router.patch(route('servis.status', props.reparation.id), {
         status: settleForm.value.status,
         note: settleForm.value.note,
-        payment_status: paid ? 'paid' : 'unpaid',
+        handed_over_by: result.cashier,
+        cashier_id: result.cashier,
+        payment_status: result.paid ? 'paid' : 'unpaid',
     }, {
         preserveScroll: true,
         onSuccess: () => { showSettle.value = false; },
@@ -123,19 +135,18 @@ const submitSettle = (paid) => {
     });
 };
 
-const markPaid = () => {
+const markPaid = (payload) => {
     saving.value = true;
-    router.patch(route('servis.lunas', props.reparation.id), {}, {
+    router.patch(route('servis.lunas', props.reparation.id), {
+        cashier_id: payload.cashier,
+    }, {
         preserveScroll: true,
+        onSuccess: () => { showMarkPaid.value = false; },
         onFinish: () => { saving.value = false; },
     });
 };
 
-const confirmedItems = computed(() =>
-    (props.reparation.stages ?? [])
-        .filter((stage) => stage.status === 'CONFIRMED')
-        .flatMap((stage) => stage.items ?? [])
-);
+const confirmedItems = computed(() => servisConfirmedItems(props.reparation.stages));
 
 const grandTotal = computed(() => confirmedItems.value.reduce((sum, item) => sum + Number(item.cost ?? 0), 0));
 
@@ -190,7 +201,7 @@ const receiptMessage = computed(() => {
                         Konfirmasi
                     </AppButton>
                     <AppButton v-if="can('edit reparation') && reparation.payment_status !== 'paid' && ['DONE', 'TAKEN'].includes(reparation.status)"
-                        variant="secondary" size="sm" :loading="saving" @click="markPaid">
+                        variant="secondary" size="sm" :loading="saving" @click="showMarkPaid = true">
                         <Wallet class="h-4 w-4" />
                         Tandai Lunas
                     </AppButton>
@@ -222,6 +233,9 @@ const receiptMessage = computed(() => {
                             </button>
                             <button type="button" class="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/60" @click="runAction(() => showSettle = true)">
                                 <Wallet class="h-4 w-4 text-gray-400" /> Rincian Biaya
+                            </button>
+                            <button v-if="can('edit reparation') && reparation.payment_status !== 'paid' && ['DONE', 'TAKEN'].includes(reparation.status)" type="button" class="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/60" @click="runAction(() => showMarkPaid = true)">
+                                <Wallet class="h-4 w-4 text-gray-400" /> Tandai Lunas
                             </button>
                         </div>
                     </div>
@@ -292,9 +306,13 @@ const receiptMessage = computed(() => {
                     <div class="flex items-center justify-between rounded-lg border border-gray-200 dark:border-gray-800 px-4 py-3">
                         <div class="text-sm">
                             <p class="font-medium text-gray-900 dark:text-white">Total biaya</p>
-                            <p class="text-xs text-gray-500">
-                                {{ reparation.payment_status === 'paid' ? `Lunas${reparation.paid_at ? ' · ' + formatDateTime(reparation.paid_at) : ''}` : 'Belum lunas' }}
-                            </p>
+                            <div class="mt-1 flex flex-wrap items-center gap-2">
+                                <AppBadge :color="reparation.payment_status === 'paid' ? 'green' : 'gray'" size="sm" dot>
+                                    {{ reparation.payment_status === 'paid' ? 'Lunas' : 'Belum Lunas' }}
+                                </AppBadge>
+                                <span v-if="reparation.paid_at" class="text-xs text-gray-500">{{ formatDateTime(reparation.paid_at) }}</span>
+                                <span v-if="reparation.handed_over_by_name" class="text-xs text-gray-500">· Diserahkan: {{ reparation.handed_over_by_name }}</span>
+                            </div>
                         </div>
                         <p class="text-lg font-semibold tabular-nums text-gray-900 dark:text-white">{{ formatRupiah(reparation.total_price ?? grandTotal) }}</p>
                     </div>
@@ -352,11 +370,26 @@ const receiptMessage = computed(() => {
     <ServisSettleModal
         :show="showSettle"
         :status="settleForm.status"
+        mode="settle"
+        :already-paid="reparation.payment_status === 'paid'"
         :items="confirmedItems"
         :total="grandTotal"
+        :users="users"
         :saving="saving"
         @close="showSettle = false"
         @confirm="submitSettle"
+    />
+
+    <ServisSettleModal
+        :show="showMarkPaid"
+        status="TAKEN"
+        mode="lunas"
+        :items="confirmedItems"
+        :total="grandTotal"
+        :users="users"
+        :saving="saving"
+        @close="showMarkPaid = false"
+        @confirm="markPaid"
     />
 
     <ServisStatusModal
