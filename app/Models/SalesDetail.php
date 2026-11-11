@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 
-#[Fillable(['sales_id', 'item_type', 'item_id', 'qty', 'price', 'subtotal'])]
+#[Fillable(['sales_id', 'item_type', 'item_id', 'qty', 'price', 'subtotal', 'promo_discount'])]
 class SalesDetail extends Model
 {
     public function sale()

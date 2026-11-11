@@ -8,6 +8,7 @@ use App\Http\Resources\SalesResource;
 use App\Models\Cart;
 use App\Models\CashFlow;
 use App\Models\Customer;
+use App\Models\Promo;
 use App\Models\Sale;
 use App\Models\SalesDetail;
 use App\Models\StockMovement;
@@ -74,6 +75,19 @@ class SalesController extends Controller
             'customers' => Customer::query()->orderBy('name')->get(['id', 'name', 'phone', 'is_member']),
             'cart' => new CartResource($cart),
             'heldCarts' => CartResource::collection($heldCarts),
+            // Promo yang boleh dipakai kasir hari ini.
+            'promos' => Promo::query()
+                ->active()
+                ->orderBy('title')
+                ->get(['id', 'title', 'type', 'value', 'item_types', 'starts_at', 'ends_at'])
+                ->map(fn (Promo $promo) => [
+                    'id' => $promo->id,
+                    'title' => $promo->title,
+                    'type' => $promo->type,
+                    'value' => (float) $promo->value,
+                    'item_types' => $promo->item_types ?? [],
+                    'ends_at' => $promo->ends_at?->toDateString(),
+                ]),
         ]);
     }
 
@@ -99,6 +113,7 @@ class SalesController extends Controller
                 'subtotal' => (float) $sale->subtotal,
                 'discount' => (float) $sale->discount,
                 'header_discount' => (float) $sale->header_discount,
+                'promo_title' => $sale->promo_title,
                 'total' => (float) $sale->total,
                 'dp_amount' => $sale->dp_amount !== null ? (float) $sale->dp_amount : null,
                 'paid_at' => $sale->paid_at?->toDateTimeString(),
@@ -109,7 +124,8 @@ class SalesController extends Controller
                     'qty' => $detail->qty,
                     'price' => (float) $detail->price,
                     'discount' => max(0, ($detail->qty * (float) $detail->price) - (float) $detail->subtotal),
-                    'subtotal' => (float) $detail->subtotal,
+                    'promo_discount' => (float) $detail->promo_discount,
+                    'subtotal' => (float) $detail->subtotal - (float) $detail->promo_discount,
                     'specification' => $detail->item?->specification ?: null,
                     'accessories' => $detail->item?->accessories ?: [],
                     'features' => $detail->item?->features ?: [],
@@ -173,8 +189,22 @@ class SalesController extends Controller
         DB::transaction(function () use ($data, $request, &$sale) {
             $subtotal = 0;
             $lineDiscountTotal = 0;
+            $promoTotal = 0;
             $lines = [];
             $movements = [];
+
+            // Promo dipilih user, tapi yang menentukan besarannya tetap server:
+            // promo harus benar-benar sedang berlaku hari ini.
+            $promo = null;
+            if (filled($data['promo_id'] ?? null)) {
+                $promo = Promo::query()->active()->find($data['promo_id']);
+
+                if (! $promo) {
+                    throw ValidationException::withMessages([
+                        'promo_id' => 'Promo yang dipilih sudah tidak berlaku.',
+                    ]);
+                }
+            }
 
             foreach ($data['items'] as $item) {
                 $stockItem = StockItem::modelFor($item['item_type'])::query()
@@ -182,9 +212,35 @@ class SalesController extends Controller
                     ->findOrFail($item['item_id']);
 
                 $qty = (int) $item['qty'];
-                $price = (float) $item['price'];
-                $lineDiscount = min((float) ($item['discount'] ?? 0), $qty * $price);
-                $lineSubtotal = ($qty * $price) - $lineDiscount;
+                $isBonus = (bool) ($item['is_bonus'] ?? false);
+
+                // Harga selalu dari database; negosiasi dilakukan lewat diskon item.
+                // Bonus bukan diskon: harganya memang 0, jadi tidak muncul sebagai potongan di nota.
+                $price = $isBonus ? 0.0 : (float) $stockItem->sell_price;
+                $gross = $qty * $price;
+
+                $lineDiscount = $isBonus ? 0.0 : (float) ($item['discount'] ?? 0);
+
+                if ($lineDiscount > $gross) {
+                    throw ValidationException::withMessages([
+                        'items' => "Diskon {$stockItem->name} (Rp {$lineDiscount}) melebihi harganya (Rp {$gross}).",
+                    ]);
+                }
+
+                // Potongan promo dihitung per unit (harga asli × persen, atau nominal),
+                // jadi hasilnya tetap bulat walau qty lebih dari satu.
+                $promoUnit = $promo && ! $isBonus && in_array($item['item_type'], $promo->item_types ?? [], true)
+                    ? $promo->discountForUnit($price)
+                    : 0.0;
+                $linePromo = $promoUnit * $qty;
+
+                if ($linePromo + $lineDiscount > $gross) {
+                    throw ValidationException::withMessages([
+                        'items' => "Total potongan {$stockItem->name} (Rp ".($linePromo + $lineDiscount).") melebihi harganya (Rp {$gross}).",
+                    ]);
+                }
+
+                $lineSubtotal = $gross - $lineDiscount;
 
                 if ($stockItem->stock < $qty) {
                     throw ValidationException::withMessages([
@@ -192,22 +248,29 @@ class SalesController extends Controller
                     ]);
                 }
 
-                $subtotal += $qty * $price;
+                $subtotal += $gross;
                 $lineDiscountTotal += $lineDiscount;
+                $promoTotal += $linePromo;
                 $lines[] = [
                     'item_type' => $item['item_type'],
                     'item_id' => $stockItem->id,
                     'qty' => $qty,
                     'price' => $price,
                     'subtotal' => $lineSubtotal,
+                    'promo_discount' => $linePromo,
                 ];
 
-                $movements[] = [$stockItem, $qty, (bool) ($item['is_bonus'] ?? false)];
+                $movements[] = [$stockItem, $qty, $isBonus];
             }
 
-            $headerDiscount = (float) ($data['discount'] ?? 0);
-            $discount = $lineDiscountTotal + $headerDiscount;
-            $total = max(0, $subtotal - $discount);
+            $discount = $lineDiscountTotal + $promoTotal;
+            $total = $subtotal - $discount;
+
+            if ($total < 0) {
+                throw ValidationException::withMessages([
+                    'items' => 'Total potongan melebihi harga barang. Periksa diskon item dan promo.',
+                ]);
+            }
 
             $trxAt = filled($data['date'] ?? null)
                 ? Carbon::parse($data['date'])->setTimeFrom(now())
@@ -216,9 +279,12 @@ class SalesController extends Controller
             $sale = Sale::create([
                 'customer_id' => $data['customer_id'] ?? null,
                 'user_id' => $data['user_id'],
+                'promo_id' => $promo?->id,
+                // Judul di-snapshot supaya nota lama tetap terbaca walau promo diubah/dihapus.
+                'promo_title' => $promo?->title,
                 'subtotal' => $subtotal,
                 'discount' => $discount,
-                'header_discount' => $headerDiscount,
+                'header_discount' => 0,
                 'total' => $total,
                 'payment_status' => $data['payment_status'],
                 'payment_method' => $data['payment_method'],
@@ -271,7 +337,7 @@ class SalesController extends Controller
                     // Rinci per item; baris dengan subtotal 0 dilewati.
                     $sale->load('details.item');
                     foreach ($sale->details as $detail) {
-                        $lineSubtotal = (float) $detail->subtotal;
+                        $lineSubtotal = (float) $detail->subtotal - (float) $detail->promo_discount;
                         if ($lineSubtotal <= 0) {
                             continue;
                         }

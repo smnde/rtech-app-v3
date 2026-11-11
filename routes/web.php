@@ -14,6 +14,7 @@ use App\Http\Controllers\LaptopsController;
 use App\Http\Controllers\PermissionsController;
 use App\Http\Controllers\PriceTagController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PromosController;
 use App\Http\Controllers\PurchasesController;
 use App\Http\Controllers\ReparationsController;
 use App\Http\Controllers\ReportsController;
@@ -144,6 +145,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/pembelian/{purchase}/done', [PurchasesController::class, 'markDone'])->middleware('permission:edit purchase')->name('pembelian.done');
         Route::delete('/pembelian/{purchase}', [PurchasesController::class, 'destroy'])->middleware('permission:delete purchase')->name('pembelian.destroy')->middleware('sysadmin.password');
         Route::get('/pembelian/{purchase}', [PurchasesController::class, 'show'])->middleware('permission:show purchase')->name('pembelian.show');
+        Route::post('/pembelian/{purchase}/lunas', [PurchasesController::class, 'markPaid'])->middleware('permission:edit purchase')->name('pembelian.lunas');
         Route::post('/pembelian', [PurchasesController::class, 'store'])->middleware('permission:add purchase')->name('pembelian.store');
 
         Route::prefix('keranjang/{type}')->whereIn('type', ['sale', 'purchase'])->name('keranjang.')->group(function () {
@@ -170,6 +172,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/mutasi-stok', [StockMovementsController::class, 'store'])->middleware('permission:add stock_movement')->name('stock-movements.store');
     Route::patch('/mutasi-stok/{stockMovement}', [StockMovementsController::class, 'update'])->middleware('permission:edit stock_movement')->name('stock-movements.update');
     Route::delete('/mutasi-stok/{stockMovement}', [StockMovementsController::class, 'destroy'])->middleware('permission:delete stock_movement')->name('stock-movements.destroy')->middleware('sysadmin.password');
+
+    // === Promo ===
+    Route::get('/promo', [PromosController::class, 'index'])->middleware('permission:show promo')->name('promo.index');
+    Route::post('/promo', [PromosController::class, 'store'])->middleware('permission:add promo')->name('promo.store');
+    Route::put('/promo/{promo}', [PromosController::class, 'update'])->middleware('permission:edit promo')->name('promo.update');
+    Route::delete('/promo/{promo}', [PromosController::class, 'destroy'])->middleware('permission:delete promo')->name('promo.destroy')->middleware('sysadmin.password');
 
     // === Laporan ===
     Route::prefix('laporan')->name('laporan.')->group(function () {

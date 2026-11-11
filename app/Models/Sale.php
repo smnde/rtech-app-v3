@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Model;
 #[Fillable([
     'customer_id',
     'user_id',
+    'promo_id',
+    'promo_title',
     'invoice',
     'subtotal',
     'discount',
@@ -44,6 +46,11 @@ class Sale extends Model
     public function customer()
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function promo()
+    {
+        return $this->belongsTo(Promo::class);
     }
 
     public function details()

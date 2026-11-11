@@ -31,7 +31,8 @@ class ReportsController extends Controller
                 'date' => $sale->created_at->toDateTimeString(),
                 'item_name' => $detail->item?->name ?? '-',
                 'qty' => (int) $detail->qty,
-                'subtotal' => (float) $detail->subtotal,
+                'promo_discount' => (float) $detail->promo_discount,
+                'subtotal' => (float) $detail->subtotal - (float) $detail->promo_discount,
             ]))
             ->values();
 

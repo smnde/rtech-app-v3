@@ -27,6 +27,8 @@ const isPaid = computed(() =>
     props.sale?.payment_status ? props.sale.payment_status === 'lunas' : true
 );
 const itemDiscount = computed(() => items.value.reduce((s, li) => s + (Number(li.discount) || 0), 0));
+const promoDiscount = computed(() => items.value.reduce((s, li) => s + (Number(li.promo_discount) || 0), 0));
+const promoTitle = computed(() => props.sale?.promo_title ?? null);
 const headerDiscount = computed(() => Number(props.sale?.header_discount) || 0);
 const isPurchase = computed(() => props.sale?.supplier !== undefined);
 // Sisa & jatuh tempo hanya untuk nota penjualan yang belum lunas.
@@ -36,18 +38,15 @@ const outstanding = computed(() => (isUnpaid.value
     ? Math.max(0, Number(props.sale?.total ?? 0) - Number(props.sale?.dp_amount ?? 0))
     : 0));
 
-/** Satu baris "Diskon" bila hanya ada satu jenis diskon; dua baris bila keduanya ada. */
+/** Satu baris per jenis potongan yang benar-benar dipakai. */
 const discountLines = computed(() => {
-    if (itemDiscount.value > 0 && headerDiscount.value > 0) {
-        return [
-            { label: 'Diskon item', value: itemDiscount.value },
-            { label: 'Diskon khusus', value: headerDiscount.value },
-        ];
-    }
+    const lines = [];
 
-    const total = itemDiscount.value + headerDiscount.value;
+    if (itemDiscount.value > 0) lines.push({ label: 'Diskon item', value: itemDiscount.value });
+    if (promoDiscount.value > 0) lines.push({ label: promoTitle.value || 'Promo', value: promoDiscount.value });
+    if (headerDiscount.value > 0) lines.push({ label: 'Diskon khusus', value: headerDiscount.value });
 
-    return total > 0 ? [{ label: 'Diskon', value: total }] : [];
+    return lines;
 });
 const invoiceNo = computed(() => props.sale?.invoice_no ?? props.sale?.reference_no ?? '');
 const partyLabel = computed(() => (isPurchase.value ? 'Supplier' : 'Customer'));
@@ -72,35 +71,42 @@ function formatDay(d) {
     });
 }
 
-// Spek 2 baris tanpa label: (CPU + GPU) lalu (Memory + Storage + Display).
+// Spek satu baris: CPU · GPU · Memory · Storage · Display (+ key lain).
 function specLines(spec) {
     if (!spec || typeof spec !== 'object') return [];
 
-    const value = (key) => {
-        const v = spec[key];
-
-        return v !== null && v !== undefined && `${v}`.trim() !== '' ? `${v}`.trim() : '';
-    };
-
-    const known = ['cpu', 'gpu', 'memory', 'storage', 'display'];
-    const extra = Object.entries(spec)
-        .filter(([key, v]) => !known.includes(key) && v !== null && v !== undefined && `${v}`.trim() !== '')
+    const line = Object.entries(spec)
+        .filter(([, v]) => v !== null && v !== undefined && `${v}`.trim() !== '')
         .map(([, v]) => `${v}`.trim())
         .join(' · ');
 
-    const line1 = ['cpu', 'gpu'].map(value).filter(Boolean).join(' · ');
-    const line2 = [...['memory', 'storage', 'display'].map(value), extra].filter(Boolean).join(' · ');
-
-    return [line1, line2].filter(Boolean);
+    return line ? [line] : [];
 }
 
-// Spek, fitur, aksesori & garansi — masing-masing baris terpisah.
+// Baris kecil di bawah nama barang: spek, lalu fitur & aksesori dipisah "||".
+// Garansi tidak di sini — ditempel di samping nama barang.
 function itemExtras(li) {
     const extras = [...specLines(li.specification)];
-    if (Array.isArray(li.features) && li.features.length) extras.push(li.features.join(' · '));
-    if (Array.isArray(li.accessories) && li.accessories.length) extras.push(li.accessories.join(' · '));
-    if (li.warranty) extras.push(`Garansi: ${li.warranty}`);
+    const features = Array.isArray(li.features) && li.features.length ? li.features.join(' · ') : '';
+    const accessories = Array.isArray(li.accessories) && li.accessories.length ? li.accessories.join(' · ') : '';
+
+    if (features || accessories) {
+        extras.push([features, accessories].filter(Boolean).join(' || '));
+    }
+
     return extras;
+}
+
+/** Barang bonus: harga memang 0 — bukan barang yang didiskon. */
+const isBonusItem = (li) => !Number(li.price ?? li.buy_price) && !Number(li.subtotal) && !Number(li.promo_discount);
+
+/** Potongan per item — ditulis di bawah nama barang, bukan kolom terpisah. */
+function itemDiscounts(li) {
+    const rows = [];
+    if (isBonusItem(li)) rows.push({ text: 'Bonus', cls: 'text-emerald-600' });
+    if (Number(li.discount) > 0) rows.push({ text: `Diskon item: − ${num(li.discount)}`, cls: 'text-red-600' });
+    if (Number(li.promo_discount) > 0) rows.push({ text: `${promoTitle.value || 'Promo'}: − ${num(li.promo_discount)}`, cls: 'text-red-600' });
+    return rows;
 }
 
 const doPrint = () => printReceipt({ store: props.store, sale: props.sale, title: props.title });
@@ -206,7 +212,6 @@ const sendWa = async () => {
                         <th class="w-[42%] px-1 py-1.5 text-left font-semibold">Barang</th>
                         <th class="px-1 py-1.5 text-right font-semibold">Qty</th>
                         <th class="px-1 py-1.5 text-right font-semibold">Harga</th>
-                        <th class="px-1 py-1.5 text-right font-semibold">Diskon</th>
                         <th class="px-1 py-1.5 text-right font-semibold">Subtotal</th>
                     </tr>
                 </thead>
@@ -214,13 +219,16 @@ const sendWa = async () => {
                     <tr v-for="(li, i) in items" :key="i" class="border-b border-slate-100 align-top">
                         <td class="px-1 py-1.5 text-slate-400">{{ i + 1 }}</td>
                         <td class="px-1 py-1.5">
-                            <p class="font-semibold text-slate-900">{{ li.item_name ?? li.name }}</p>
+                            <p class="font-semibold text-slate-900">
+                                {{ li.item_name ?? li.name }}
+                                <span v-if="li.warranty" class="font-normal text-slate-500">· Garansi: {{ li.warranty }}</span>
+                            </p>
 <p v-if="li.serial_number" class="text-[8px] text-slate-500">SN: {{ li.serial_number }}</p>
                             <p v-for="(x, xi) in itemExtras(li)" :key="xi" class="text-[8px] text-slate-500">{{ x }}</p>
+                            <p v-for="(x, xi) in itemDiscounts(li)" :key="`d${xi}`" :class="['text-[8px]', x.cls]">{{ x.text }}</p>
                         </td>
                         <td class="px-1 py-1.5 text-right tabular-nums">{{ li.quantity ?? li.qty }}</td>
                         <td class="px-1 py-1.5 text-right tabular-nums">{{ num(li.price ?? li.buy_price) }}</td>
-                        <td class="px-1 py-1.5 text-right tabular-nums">{{ Number(li.discount) > 0 ? `− ${num(li.discount)}` : '—' }}</td>
                         <td class="px-1 py-1.5 text-right tabular-nums">{{ num(li.subtotal ?? ((li.quantity ?? li.qty) * (li.price ?? li.buy_price))) }}</td>
                     </tr>
                 </tbody>
@@ -258,6 +266,7 @@ const sendWa = async () => {
                     </ul>
                 </li>
                 <li>Garansi hangus jika terjadi human error / kesalahan pengguna.</li>
+                <li>Unit yang masih ada garansi resminya tercover garansi resmi dan tidak tercover garansi toko.</li>
                 <li>Tidak ada pengembalian uang atau barang untuk barang yang sudah dibeli.</li>
             </ol>
         </div>

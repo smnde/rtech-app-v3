@@ -108,7 +108,11 @@ const toggleItem = (index) => {
 
 const hasSpec = (item) => !!(item.specification || item.serial_number || item.accessories?.length || item.features?.length);
 
+/** Barang bonus: harga memang 0 — bukan barang yang didiskon. */
+const isBonusItem = (item) => !Number(item.price) && !Number(item.subtotal) && !Number(item.promo_discount);
+
 const itemDiscount = computed(() => props.sale.items.reduce((sum, item) => sum + (item.discount || 0), 0));
+const promoDiscount = computed(() => props.sale.items.reduce((sum, item) => sum + (item.promo_discount || 0), 0));
 
 const specEntries = (spec) => Object.entries(spec ?? {}).filter(([, v]) => v);
 
@@ -126,6 +130,7 @@ const receiptSale = computed(() => ({
     subtotal: props.sale.subtotal,
     discount: props.sale.discount,
     header_discount: props.sale.header_discount,
+    promo_title: props.sale.promo_title,
     dp_amount: props.sale.dp_amount,
     paid_at: props.sale.paid_at,
     total: props.sale.total,
@@ -141,6 +146,7 @@ const receiptSale = computed(() => ({
         quantity: item.qty,
         price: item.price,
         discount: item.discount,
+        promo_discount: item.promo_discount,
         subtotal: item.subtotal,
     })),
 }));
@@ -156,20 +162,25 @@ const receiptMessage = computed(() => {
         `Customer: ${s.customer?.name ?? 'Umum'}`,
         `Kasir: ${s.cashier ?? '-'}`,
         '',
-        ...s.items.map((item) => `${item.item_name ?? '-'} ${item.qty} x ${rupiah(item.price)} = ${rupiah(item.subtotal)}`),
+        ...s.items.map((item) => (isBonusItem(item)
+            ? `${item.item_name ?? '-'} ${item.qty} (Bonus) = ${rupiah(item.subtotal)}`
+            : `${item.item_name ?? '-'} ${item.qty} x ${rupiah(item.price)} = ${rupiah(item.subtotal)}`)),
         '',
         `Subtotal: ${rupiah(s.subtotal)}`,
     ];
 
     const headerDiscount = Number(s.header_discount) || 0;
 
-    if (headerDiscount > 0 && itemDiscount.value > 0) {
-        lines.push(
-            `Diskon item: - ${rupiah(itemDiscount.value)}`,
-            `Diskon khusus: - ${rupiah(headerDiscount)}`,
-        );
-    } else if (headerDiscount + itemDiscount.value > 0) {
-        lines.push(`Diskon: - ${rupiah(headerDiscount + itemDiscount.value)}`);
+    if (itemDiscount.value > 0) {
+        lines.push(`Diskon item: - ${rupiah(itemDiscount.value)}`);
+    }
+
+    if (promoDiscount.value > 0) {
+        lines.push(`${s.promo_title ?? 'Promo'}: - ${rupiah(promoDiscount.value)}`);
+    }
+
+    if (headerDiscount > 0) {
+        lines.push(`Diskon khusus: - ${rupiah(headerDiscount)}`);
     }
 
     lines.push(
@@ -297,9 +308,9 @@ const waPhone = computed(() => props.sale.customer?.phone ?? '');
                             </p>
                         </div>
                         <div class="rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
-                            <p :class="labelClass">Diskon khusus</p>
-                            <p :class="['text-sm tabular-nums', sale.header_discount ? 'text-red-500' : 'text-gray-900 dark:text-white']">
-                                {{ sale.header_discount ? `- ${rupiah(sale.header_discount)}` : '-' }}
+                            <p :class="labelClass">{{ sale.promo_title || 'Promo' }}</p>
+                            <p :class="['text-sm tabular-nums', promoDiscount ? 'text-red-500' : 'text-gray-900 dark:text-white']">
+                                {{ promoDiscount ? `- ${rupiah(promoDiscount)}` : '-' }}
                             </p>
                         </div>
                         <div class="rounded-lg bg-indigo-50 p-3 dark:bg-indigo-500/10">
@@ -330,7 +341,9 @@ const waPhone = computed(() => props.sale.customer?.phone ?? '');
                                     <div class="min-w-0">
                                         <p class="truncate text-sm font-medium text-gray-900 dark:text-white">{{ item.item_name ?? '—' }}</p>
                                         <p class="font-mono text-xs text-gray-500">{{ item.item_code }} · {{ item.qty }} × {{ rupiah(item.price) }}</p>
+                                        <p v-if="isBonusItem(item)" class="text-xs font-medium text-green-600 dark:text-green-400">Bonus</p>
                                         <p v-if="item.discount" class="text-xs tabular-nums text-red-500">diskon - {{ rupiah(item.discount) }}</p>
+                                        <p v-if="item.promo_discount" class="text-xs tabular-nums text-red-500">{{ sale.promo_title || 'promo' }} - {{ rupiah(item.promo_discount) }}</p>
                                     </div>
                                 </div>
                                 <p class="shrink-0 text-sm font-semibold tabular-nums text-gray-900 dark:text-white">{{ rupiah(item.subtotal) }}</p>

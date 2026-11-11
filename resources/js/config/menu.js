@@ -21,6 +21,7 @@ import {
     ShoppingBag,
     Truck,
     Wallet,
+    BadgePercent,
 } from 'lucide-vue-next';
 
 /**
@@ -60,6 +61,13 @@ export const menuItems = [
                 icon: Truck,
                 route: 'master.supplier',
                 permission: 'show supplier',
+            },
+            {
+                key: 'promo',
+                label: 'Promo',
+                icon: BadgePercent,
+                route: 'promo.index',
+                permission: 'show promo',
             },
         ],
     },

@@ -28,12 +28,11 @@ class StoreSaleRequest extends FormRequest
             'dp_amount' => ['nullable', 'numeric', 'min:0', 'required_if:payment_status,keep'],
             'paid_at' => ['nullable', 'date', 'required_if:payment_status,keep'],
             'notes' => ['nullable', 'string', 'max:500'],
-            'discount' => ['nullable', 'numeric', 'min:0'],
+            'promo_id' => ['nullable', 'integer', 'exists:promos,id'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.item_type' => ['required', Rule::in(array_keys(StockItem::types()))],
             'items.*.item_id' => ['required', 'integer'],
             'items.*.qty' => ['required', 'integer', 'min:1'],
-            'items.*.price' => ['required', 'numeric', 'min:0'],
             'items.*.discount' => ['nullable', 'numeric', 'min:0'],
             'items.*.is_bonus' => ['nullable', 'boolean'],
         ];
@@ -48,6 +47,7 @@ class StoreSaleRequest extends FormRequest
             'user_id.required' => 'Kasir wajib dipilih.',
             'dp_amount.required_if' => 'DP wajib diisi untuk status keep.',
             'paid_at.required_if' => 'Tanggal pelunasan wajib diisi untuk status keep.',
+            'promo_id.exists' => 'Promo yang dipilih tidak ditemukan.',
         ];
     }
 }

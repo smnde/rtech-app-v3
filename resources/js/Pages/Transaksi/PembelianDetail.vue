@@ -7,6 +7,8 @@ import AppBadge from '@/Components/UI/AppBadge.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
 import ReceiptModal from '@/Components/Cart/ReceiptModal.vue';
 import AppConfirmModal from '@/Components/UI/AppConfirmModal.vue';
+import AppModal from '@/Components/UI/AppModal.vue';
+import AppSelect from '@/Components/UI/AppSelect.vue';
 import { usePermission } from '@/composables/usePermission';
 import { useConfirm } from '@/composables/useConfirm';
 import { useDeleteConfirm } from '@/composables/useDeleteConfirm';
@@ -17,7 +19,39 @@ const { confirmDelete } = useDeleteConfirm();
 
 const props = defineProps({
     purchase: { type: Object, required: true },
+    cashiers: { type: Array, default: () => [] },
 });
+
+const payOpen = ref(false);
+const payCashier = ref('');
+const paySaving = ref(false);
+
+const cashierOptions = computed(() => props.cashiers.map((user) => ({ id: user.id, label: user.name })));
+
+/** Sisa yang harus dilunasi ke supplier. */
+const outstanding = computed(() => Math.max(0, Number(props.purchase.total ?? 0)));
+
+const openPayModal = () => {
+    payCashier.value = '';
+    payOpen.value = true;
+};
+
+const closePayModal = () => {
+    if (paySaving.value) return;
+    payOpen.value = false;
+};
+
+const submitPay = () => {
+    if (!payCashier.value) return;
+    paySaving.value = true;
+    router.post(route('transaksi.pembelian.lunas', props.purchase.id), {
+        user_id: payCashier.value,
+    }, {
+        preserveScroll: true,
+        onSuccess: () => { payOpen.value = false; },
+        onFinish: () => { paySaving.value = false; },
+    });
+};
 
 const statusColor = { lunas: 'green', hutang: 'yellow' };
 const orderStatusColor = { ordered: 'blue', pending: 'yellow', done: 'green' };
@@ -132,6 +166,13 @@ const labelClass = 'text-xs text-gray-500 dark:text-gray-500 mb-1';
                     Kembali ke daftar pembelian
                 </Link>
                 <div class="flex items-center gap-2">
+                    <AppButton
+                        v-if="purchase.payment_status === 'hutang' && can('edit purchase')"
+                        variant="primary" size="sm" @click="openPayModal"
+                    >
+                        <CheckCircle2 class="h-4 w-4" />
+                        Tandai Lunas
+                    </AppButton>
                     <AppButton variant="outline" size="sm" @click="receiptOpen = true">
                         <Printer class="h-4 w-4" />
                         Cetak Nota
@@ -268,6 +309,28 @@ const labelClass = 'text-xs text-gray-500 dark:text-gray-500 mb-1';
         <ReceiptModal :show="receiptOpen" :store="store" :sale="receiptSale"
             :phone="waPhone" :wa-text="receiptMessage"
             title="NOTA PEMBELIAN" @close="receiptOpen = false" />
+
+        <AppModal :show="payOpen" title="Konfirmasi Pelunasan" size="sm" @close="closePayModal">
+            <div class="space-y-4">
+                <div class="rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 p-4">
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Nominal pelunasan</p>
+                    <p class="mt-1 text-2xl font-bold tabular-nums text-gray-900 dark:text-white">{{ rupiah(outstanding) }}</p>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        Pembelian {{ purchase.invoice }} · {{ purchase.supplier?.name ?? 'Tanpa supplier' }}
+                    </p>
+                </div>
+                <div>
+                    <label class="mb-1 block text-xs text-gray-500 dark:text-gray-500">Kasir pelunasan <span class="text-red-500">*</span></label>
+                    <AppSelect v-model="payCashier" :options="cashierOptions" placeholder="Pilih kasir..." />
+                    <p class="mt-1 text-xs text-gray-400">Tercatat sebagai kas keluar, dan kasir pembelian diganti dengan kasir yang melunasi.</p>
+                </div>
+            </div>
+
+            <template #footer>
+                <AppButton variant="secondary" size="sm" @click="closePayModal">Batal</AppButton>
+                <AppButton variant="primary" size="sm" :loading="paySaving" :disabled="!payCashier" @click="submitPay">Lunas</AppButton>
+            </template>
+        </AppModal>
 
         <AppConfirmModal />
     </AppLayout>

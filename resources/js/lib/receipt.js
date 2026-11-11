@@ -35,27 +35,17 @@ function formatDay(d) {
     });
 }
 
-// Spek jadi 2 baris tanpa label:
-//   1) CPU + GPU   2) Memory + Storage + Display (+ key lain).
+// Spek satu baris: CPU · GPU · Memory · Storage · Display (+ key lain).
+// Kolom Diskon sudah dihapus, jadi kolom Barang cukup lebar untuk satu baris.
 function specLines(spec) {
     if (!spec || typeof spec !== 'object') return [];
 
-    const value = (key) => {
-        const v = spec[key];
-
-        return v !== null && v !== undefined && `${v}`.trim() !== '' ? `${v}`.trim() : '';
-    };
-
-    const known = ['cpu', 'gpu', 'memory', 'storage', 'display'];
-    const extra = Object.entries(spec)
-        .filter(([key, v]) => !known.includes(key) && v !== null && v !== undefined && `${v}`.trim() !== '')
+    const line = Object.entries(spec)
+        .filter(([, v]) => v !== null && v !== undefined && `${v}`.trim() !== '')
         .map(([, v]) => `${v}`.trim())
         .join(' · ');
 
-    const line1 = ['cpu', 'gpu'].map(value).filter(Boolean).join(' · ');
-    const line2 = [...['memory', 'storage', 'display'].map(value), extra].filter(Boolean).join(' · ');
-
-    return [line1, line2].filter(Boolean);
+    return line ? [line] : [];
 }
 
 function pair(label, value) {
@@ -90,8 +80,10 @@ const PAPER_CSS = `
     table.items .num { text-align: right; white-space: nowrap; }
     table.items .idx { width: 8mm; color: #9ca3af; }
     .item-name { font-weight: 600; }
+    .item-warranty { font-weight: 400; color: #6b7280; }
     .item-sub { font-size: 9px; color: #6b7280; margin-top: 1px; }
     .item-spec { font-size: 8.5px; color: #9ca3af; margin-top: 1px; }
+    .item-disc { font-size: 8.5px; color: #b91c1c; margin-top: 1px; }
     .totals { width: 78mm; margin-left: auto; margin-top: 5mm; font-size: 10.5px; }
     .totals .row { display: flex; justify-content: space-between; padding: 1.3mm 0; }
     .totals .row span:last-child { white-space: nowrap; }
@@ -115,9 +107,12 @@ const PDF = {
     right: 0,
     widthInner: 0,
     logo: undefined,
+    // Nota digambar sebagai satu halaman memanjang: tingginya mengikuti isi.
+    // Nota pendek tetap seukuran sekarang; yang kepanjangan memanjang, bukan dipotong.
+    singlePage: true,
 };
 
-// Batas aman satu halaman saat kosong (dipakai bila nota kepanjangan).
+// Tinggi ukur awal (setinggi A4) + batas percobaan pindah halaman.
 const PAGE_MM = 297;
 
 function initPdfLayout() {
@@ -281,7 +276,7 @@ function drawTable(pdf, { columns, rows, y, headerBg = [243, 244, 246] }) {
         });
         const rowH = Math.max(...cells.map((c) => c.lines.length)) * 4 + rowPadY * 2;
 
-        if (y + rowH > PAGE_MM - PDF.padY) {
+        if (!PDF.singlePage && y + rowH > PDF.height - PDF.padY) {
             pdf.addPage([PDF.width, PAGE_MM], 'landscape');
             y = PDF.padY;
         }
@@ -290,6 +285,7 @@ function drawTable(pdf, { columns, rows, y, headerBg = [243, 244, 246] }) {
         for (const { col, lines } of cells) {
             const tx = col.align === 'right' ? x + col.width - rowPadX : x + rowPadX;
             lines.forEach((line, li) => {
+                // Baris digambar dengan gaya barisnya sendiri (mis. nama barang bold).
                 setFont(pdf, line.size ?? col.size ?? 7.5, line.style ?? col.style ?? 'normal', line.color ?? col.color ?? [17, 24, 39]);
                 pdf.text(line.text, tx, y + rowPadY + 3 + li * 4, { align: col.align ?? 'left' });
             });
@@ -341,7 +337,7 @@ function drawNotes(pdf, text, y) {
 
 function drawFoot(pdf, store, y, { bullets = null, bullet = false, numbered = false, withNotes = true } = {}) {
     y += 8;
-    if (y > PDF.height - PDF.padY - 5) {
+    if (!PDF.singlePage && y > PDF.height - PDF.padY - 5) {
         pdf.addPage([PDF.width, PAGE_MM], 'landscape');
         y = PDF.padY + 8;
     }
@@ -430,7 +426,9 @@ async function buildWithContentHeight(paint) {
     PDF.height = PAGE_MM;
     const bottom = paint(make(PAGE_MM));
 
-    const contentMm = Math.min(Math.ceil(bottom + PDF.padY), PAGE_MM);
+    // Nota pendek tetap setinggi isinya seperti sebelumnya; kalau isinya
+    // melewati tinggi A4, kertas ikut memanjang supaya footer tidak terpotong.
+    const contentMm = Math.max(Math.ceil(bottom + PDF.padY), 80);
     PDF.height = contentMm;
     const pdf = make(contentMm);
     paint(pdf);
@@ -498,6 +496,9 @@ export const SALE_FOOTER_NOTES = [
         text: 'Garansi hangus jika terjadi human error / kesalahan pengguna.',
     },
     {
+        text: 'Unit yang masih ada garansi resminya tercover garansi resmi dan tidak tercover garansi toko.',
+    },
+    {
         text: 'Tidak ada pengembalian uang atau barang untuk barang yang sudah dibeli.',
     },
 ];
@@ -544,59 +545,65 @@ export function storeFoot(store = {}, { notes = SALE_FOOTER_NOTES, bullet = fals
     </div>`;
 }
 
-// Baris tabel barang: nama, serial, fitur, aksesori, qty, harga, diskon, subtotal.
-function itemRows(items = [], { showDiscount = false } = {}) {
+// Baris tabel barang: nama (+ garansi di samping), serial, spek, fitur/aksesori,
+// potongan, qty, harga, subtotal. Diskon ditulis di bawah nama barang.
+function itemRows(items = [], { promoTitle = null } = {}) {
     return items.map((li, i) => {
         const qty = li.quantity ?? li.qty ?? 0;
         const price = li.price ?? li.buy_price ?? 0;
         const subtotal = li.subtotal ?? (qty * price);
         const sub = li.serial_number ? `<span>SN: ${esc(li.serial_number)}</span>` : '';
+        const itemDisc = Number(li.discount) || 0;
+        const promoDisc = Number(li.promo_discount) || 0;
+        // Barang bonus: harga memang 0, jadi ditandai "Bonus" — bukan diskon.
+        const isBonus = Number(price) === 0 && Number(subtotal) === 0;
+        // Fitur & aksesori digabung satu baris, dipisah "||".
+        const features = Array.isArray(li.features) ? li.features.join(' · ') : '';
+        const accessories = Array.isArray(li.accessories) ? li.accessories.join(' · ') : '';
         const detailLines = [
             ...specLines(li.specification).map((line) => `<div class="item-spec">${esc(line)}</div>`),
-            Array.isArray(li.features) && li.features.length ? `<div class="item-spec">${esc(li.features.join(' · '))}</div>` : '',
-            Array.isArray(li.accessories) && li.accessories.length ? `<div class="item-spec">${esc(li.accessories.join(' · '))}</div>` : '',
-            li.warranty ? `<div class="item-spec">Garansi: ${esc(li.warranty)}</div>` : '',
+            features || accessories ? `<div class="item-spec">${esc([features, accessories].filter(Boolean).join(' || '))}</div>` : '',
+            isBonus ? '<div class="item-sub">Bonus</div>' : '',
+            itemDisc > 0 ? `<div class="item-disc">Diskon item: &minus; ${num(itemDisc)}</div>` : '',
+            promoDisc > 0 ? `<div class="item-disc">${esc(promoTitle || 'Promo')}: &minus; ${num(promoDisc)}</div>` : '',
         ].join('');
 
         return `<tr>
             <td class="idx">${i + 1}</td>
             <td>
-                <div class="item-name">${esc(li.item_name ?? li.name ?? '')}</div>
+                <div class="item-name">${esc(li.item_name ?? li.name ?? '')}${li.warranty ? `<span class="item-warranty"> &middot; Garansi: ${esc(li.warranty)}</span>` : ''}</div>
                 ${sub ? `<div class="item-sub">${sub}</div>` : ''}
                 ${detailLines}
             </td>
             <td class="num">${qty}</td>
             <td class="num">${num(price)}</td>
-            ${showDiscount ? `<td class="num">${Number(li.discount) > 0 ? `&minus; ${num(li.discount)}` : '—'}</td>` : ''}
             <td class="num">${num(subtotal)}</td>
         </tr>`;
     }).join('');
 }
 
-function itemTable(items, { showDiscount }) {
+function itemTable(items, { promoTitle = null } = {}) {
     return `<table class="items">
         <thead><tr>
             <th class="idx">#</th>
             <th>Barang</th>
             <th class="num">Qty</th>
             <th class="num">Harga</th>
-            ${showDiscount ? '<th class="num">Diskon</th>' : ''}
             <th class="num">Subtotal</th>
         </tr></thead>
-        <tbody>${itemRows(items, { showDiscount })}</tbody>
+        <tbody>${itemRows(items, { promoTitle })}</tbody>
     </table>`;
 }
 
-// Ringkasan diskon: satu baris "Diskon" bila hanya ada satu jenis diskon;
-// dua baris (item + khusus) bila keduanya ada.
-function discountRows(itemDiscount, headerDiscount) {
-    if (itemDiscount > 0 && headerDiscount > 0) {
-        return [['Diskon item', itemDiscount], ['Diskon khusus', headerDiscount]];
-    }
+// Ringkasan potongan: satu baris per jenis yang benar-benar dipakai.
+// Judul promo dipakai sebagai label barisnya (mis. "Diskon 11.11").
+function discountRows(itemDiscount, promoDiscount, headerDiscount, promoTitle) {
+    const rows = [];
+    if (itemDiscount > 0) rows.push(['Diskon item', itemDiscount]);
+    if (promoDiscount > 0) rows.push([promoTitle || 'Promo', promoDiscount]);
+    if (headerDiscount > 0) rows.push(['Diskon khusus', headerDiscount]);
 
-    const total = itemDiscount + headerDiscount;
-
-    return total > 0 ? [['Diskon', total]] : [];
+    return rows;
 }
 
 // Isi nota penjualan/pembelian (HTML, untuk Cetak).
@@ -607,6 +614,8 @@ export function saleBody({ store = {}, sale, title = 'NOTA PENJUALAN' }) {
     const isPaid = sale.payment_status ? sale.payment_status === 'lunas' : true;
     const isPurchase = sale.supplier !== undefined;
     const itemDiscount = items.reduce((sum, li) => sum + (Number(li.discount) || 0), 0);
+    const promoDiscount = items.reduce((sum, li) => sum + (Number(li.promo_discount) || 0), 0);
+    const promoTitle = sale.promo_title ?? null;
     const headerDiscount = Number(sale.header_discount) || 0;
     const isUnpaid = !isPurchase && !isPaid;
     // Selama belum lunas, paid_at berisi tanggal jatuh tempo pelunasan.
@@ -644,11 +653,11 @@ export function saleBody({ store = {}, sale, title = 'NOTA PENJUALAN' }) {
 
         <div class="meta">${meta}</div>
 
-        ${itemTable(items, { showDiscount: true })}
+        ${itemTable(items, { promoTitle })}
 
         <div class="totals">
             <div class="row"><span>Subtotal</span><span>${money(sale.subtotal)}</span></div>
-            ${discountRows(itemDiscount, headerDiscount).map(([label, value]) => `<div class="row"><span>${label}</span><span>&minus; ${money(value)}</span></div>`).join('')}
+            ${discountRows(itemDiscount, promoDiscount, headerDiscount, promoTitle).map(([label, value]) => `<div class="row"><span>${esc(label)}</span><span>&minus; ${money(value)}</span></div>`).join('')}
             <div class="row grand"><span>TOTAL</span><span>${money(sale.total)}</span></div>
             ${isUnpaid && outstanding > 0 ? `<div class="row"><span>Sisa Hutang</span><span>${money(outstanding)}</span></div>` : ''}
         </div>
@@ -700,15 +709,22 @@ export async function buildSaleReceiptPdf({ store = {}, sale, title = 'NOTA PENJ
             ].filter(Boolean),
         ], y);
 
-        const showDiscount = Number(sale.discount) > 0 || items.some((li) => Number(li.discount) > 0) || headerDiscount > 0;
+        const promoDiscount = items.reduce((sum, li) => sum + (Number(li.promo_discount) || 0), 0);
+        const promoTitle = sale.promo_title ?? null;
         const cols = [
             { label: '#', width: 8, align: 'left', color: [156, 163, 175], render: (_, i) => i + 1 },
             {
                 label: 'Barang',
-                width: showDiscount ? 74 : 96,
+                width: PDF.widthInner - 8 - 10 - 24 - 24,
                 render: (li) => {
-                    const rows = [{ text: li.item_name ?? li.name ?? '', style: 'bold' }];
                     const small = { size: 6, color: [107, 114, 128] };
+                    const disc = { size: 6.5, color: [185, 28, 28] };
+                    // Garansi nempel di samping nama barang, bukan baris sendiri.
+                    const name = li.item_name ?? li.name ?? '';
+                    const rows = [{
+                        text: li.warranty ? `${name} · Garansi: ${li.warranty}` : name,
+                        style: 'bold',
+                    }];
 
                     if (li.serial_number) {
                         rows.push({ text: `SN: ${li.serial_number}`, ...small });
@@ -718,16 +734,26 @@ export async function buildSaleReceiptPdf({ store = {}, sale, title = 'NOTA PENJ
                         rows.push({ text: line, ...small });
                     }
 
-                    if (Array.isArray(li.features) && li.features.length) {
-                        rows.push({ text: li.features.join(' · '), ...small });
+                    // Fitur & aksesori satu baris, dipisah "||".
+                    const features = Array.isArray(li.features) ? li.features.join(' · ') : '';
+                    const accessories = Array.isArray(li.accessories) ? li.accessories.join(' · ') : '';
+
+                    if (features || accessories) {
+                        rows.push({ text: [features, accessories].filter(Boolean).join(' || '), ...small });
                     }
 
-                    if (Array.isArray(li.accessories) && li.accessories.length) {
-                        rows.push({ text: li.accessories.join(' · '), ...small });
+                    // Barang bonus: harga memang 0, jadi ditandai "Bonus" — bukan diskon.
+                    if (Number(li.price ?? li.buy_price ?? 0) === 0 && Number(li.subtotal ?? 0) === 0) {
+                        rows.push({ text: 'Bonus', ...small });
                     }
 
-                    if (li.warranty) {
-                        rows.push({ text: `Garansi: ${li.warranty}`, ...small });
+                    // Potongan ditulis di bawah nama barang, bukan kolom terpisah.
+                    if (Number(li.discount) > 0) {
+                        rows.push({ text: `Diskon item: - ${num(li.discount)}`, ...disc });
+                    }
+
+                    if (Number(li.promo_discount) > 0) {
+                        rows.push({ text: `${promoTitle || 'Promo'}: - ${num(li.promo_discount)}`, ...disc });
                     }
 
                     return rows;
@@ -735,19 +761,17 @@ export async function buildSaleReceiptPdf({ store = {}, sale, title = 'NOTA PENJ
             },
             { label: 'Qty', width: 10, align: 'right', render: (li) => li.quantity ?? li.qty ?? 0 },
             { label: 'Harga', width: 24, align: 'right', render: (li) => num(li.price ?? li.buy_price ?? 0) },
-            showDiscount && { label: 'Diskon', width: 26, align: 'right', render: (li) => (Number(li.discount) > 0 ? `- ${num(li.discount)}` : '-') },
             {
-                label: 'Subtotal', width: 0, align: 'right', style: 'bold',
+                label: 'Subtotal', width: 24, align: 'right', style: 'bold',
                 render: (li) => num(li.subtotal ?? (li.quantity ?? li.qty ?? 0) * (li.price ?? li.buy_price ?? 0)),
             },
-        ].filter(Boolean);
-        cols[cols.length - 1].width = PDF.widthInner - cols.slice(0, -1).reduce((sum, c) => sum + c.width, 0);
+        ];
 
         y = drawTable(pdf, { columns: cols, rows: items, y: y + 1 });
 
         const totals = [
             ['Subtotal', money(sale.subtotal)],
-            ...discountRows(itemDiscount, headerDiscount).map(([label, value]) => [label, `- ${money(value)}`]),
+            ...discountRows(itemDiscount, promoDiscount, headerDiscount, promoTitle).map(([label, value]) => [label, `- ${money(value)}`]),
             ['TOTAL', money(sale.total), true],
             ...(isUnpaid && outstanding > 0 ? [['Sisa Hutang', money(outstanding)]] : []),
         ].filter(Boolean);

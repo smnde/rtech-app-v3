@@ -24,6 +24,7 @@ final class Permissions
         'sparepart',
         'stock_movement',
         'cashflow',
+        'promo',
     ];
 
     public const ACTIONS = ['show', 'add', 'edit', 'delete'];

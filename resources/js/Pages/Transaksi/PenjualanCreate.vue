@@ -4,13 +4,12 @@ import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import {
     ArrowLeft, Plus, Trash2, Search, ShoppingBag,
     Receipt, Save, CreditCard, UserPlus, X, ChevronDown,
-    CheckCircle2, Clock, Package, Banknote, Gift,
+    CheckCircle2, Clock, Package, Banknote, Gift, BadgePercent,
 } from 'lucide-vue-next';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import AppCard from '@/Components/UI/AppCard.vue';
 import AppButton from '@/Components/UI/AppButton.vue';
 import AppBadge from '@/Components/UI/AppBadge.vue';
-import AppNumberInput from '@/Components/UI/AppNumberInput.vue';
 import AppCurrencyInput from '@/Components/UI/AppCurrencyInput.vue';
 import AppDatePicker from '@/Components/UI/AppDatePicker.vue';
 import AppSelect from '@/Components/UI/AppSelect.vue';
@@ -21,6 +20,7 @@ const props = defineProps({
     customers: { type: Array, default: () => [] },
     cart: { type: Object, required: true },
     heldCarts: { type: Array, default: () => [] },
+    promos: { type: Array, default: () => [] },
 });
 
 const page = usePage();
@@ -35,8 +35,7 @@ const form = ref({
     paid_amount: '',
     due_date: '',              // jatuh tempo — opsional, hanya untuk hutang/keep
     note: '',
-    discount_type: 'nominal',  // nominal | percent
-    discount_value: '',
+    promo_id: '',
 });
 
 // Status pembayaran — dipilih lewat tab, bukan dropdown.
@@ -220,16 +219,36 @@ const lineDiscounts = computed(() =>
     items.value.reduce((sum, line) => sum + Number(line.discount || 0), 0),
 );
 
-const headerDiscount = computed(() => {
-    const v = Number(form.value.discount_value || 0);
-    if (!v) return 0;
-    return form.value.discount_type === 'percent'
-        ? Math.round((subtotal.value * v) / 100)
-        : v;
+/** Promo aktif yang relevan dengan isi keranjang (jenis barangnya cocok). */
+const cartItemTypes = computed(() => new Set(items.value.filter((l) => !l.is_bonus).map((l) => l.item_type)));
+
+const availablePromos = computed(() =>
+    props.promos.filter((promo) => (promo.item_types ?? []).some((type) => cartItemTypes.value.has(type))),
+);
+
+const selectedPromo = computed(() => props.promos.find((p) => p.id === form.value.promo_id) ?? null);
+
+/**
+ * Perkiraan potongan promo di keranjang: per unit, sama seperti perhitungan server.
+ * Angka final tetap ditentukan backend saat transaksi disimpan.
+ */
+const promoDiscount = computed(() => {
+    const promo = selectedPromo.value;
+    if (!promo) return 0;
+
+    return items.value.reduce((sum, line) => {
+        if (line.is_bonus || !(promo.item_types ?? []).includes(line.item_type)) return sum;
+
+        const unit = promo.type === 'percent'
+            ? Math.round((Number(line.price || 0) * Number(promo.value)) / 100 * 100) / 100
+            : Number(promo.value);
+
+        return sum + unit * Number(line.qty || 0);
+    }, 0);
 });
 
 const total = computed(() =>
-    Math.max(0, subtotal.value - lineDiscounts.value - headerDiscount.value),
+    Math.max(0, subtotal.value - lineDiscounts.value - promoDiscount.value),
 );
 
 const totalQty = computed(() => items.value.reduce((s, l) => s + Number(l.qty || 0), 0));
@@ -280,12 +299,11 @@ const handleSave = () => {
         dp_amount: form.value.status === 'keep' ? Number(form.value.paid_amount || 0) : null,
         paid_at: isPartial.value ? (form.value.due_date || null) : null,
         notes: form.value.note || null,
-        discount: headerDiscount.value,
+        promo_id: form.value.promo_id || null,
         items: items.value.map((l) => ({
             item_type: l.item_type,
             item_id: l.item_id,
             qty: Number(l.qty),
-            price: Number(l.price),
             discount: Number(l.discount || 0),
             is_bonus: !!l.is_bonus,
         })),
@@ -679,28 +697,38 @@ const inputClass = (hasError) => [
                     </div>
 
                     <div class="mt-3 space-y-3">
-                        <div class="flex items-center justify-between gap-3 pt-2 border-t border-gray-100 dark:border-gray-800">
-                            <span class="text-sm text-gray-500 dark:text-gray-400">Diskon Transaksi</span>
-                            <div class="flex items-center gap-2">
-                                <div class="inline-flex rounded-lg border border-gray-300 dark:border-gray-700 p-0.5 bg-gray-50 dark:bg-gray-800/60">
-                                    <button
-                                        v-for="opt in [{ key: 'nominal', label: 'Rp' }, { key: 'percent', label: '%' }]"
-                                        :key="opt.key"
-                                        type="button"
-                                        @click="form.discount_type = opt.key"
-                                        :class="[
-                                            'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-                                            form.discount_type === opt.key
-                                                ? 'bg-white dark:bg-gray-900 text-primary-700 dark:text-primary-400 shadow-sm'
-                                                : 'text-gray-500 dark:text-gray-400',
-                                        ]"
-                                    >
-                                        {{ opt.label }}
+                        <!-- Promo aktif: sekali tekan, potongan dibagi ke tiap unit yang cocok. -->
+                        <div v-if="availablePromos.length" class="pt-2 border-t border-gray-100 dark:border-gray-800">
+                            <div v-if="selectedPromo" class="rounded-lg border border-primary-500/50 dark:border-primary-500/40 bg-primary-50 dark:bg-primary-900/20 px-3 py-2.5">
+                                <div class="flex items-center gap-2">
+                                    <span class="flex-1 truncate text-sm font-medium text-primary-800 dark:text-primary-300">
+                                        {{ selectedPromo.title }}
+                                    </span>
+                                    <button type="button" @click="form.promo_id = ''"
+                                        class="shrink-0 rounded-lg p-1 text-primary-700 dark:text-primary-300"
+                                        aria-label="Batalkan promo">
+                                        <X class="h-4 w-4" />
                                     </button>
                                 </div>
-                                <div class="w-36">
-                                    <AppCurrencyInput v-if="form.discount_type === 'nominal'" v-model="form.discount_value" placeholder="0" />
-                                    <AppNumberInput v-else v-model="form.discount_value" :min="0" :max="100" placeholder="0" />
+                                <p class="text-xs text-primary-700 dark:text-primary-300">
+                                    Potongan {{ formatRupiah(promoDiscount) }} · s/d {{ selectedPromo.ends_at }}
+                                </p>
+                            </div>
+                            <div v-else>
+                                <button type="button" @click="form.promo_id = availablePromos[0].id"
+                                    class="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-primary-400 dark:border-primary-600 px-3 py-2.5 text-sm font-medium text-primary-700 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors">
+                                    <BadgePercent class="h-4 w-4" />
+                                    Pakai Promo ({{ availablePromos.length }} aktif)
+                                </button>
+                                <div v-if="availablePromos.length > 1" class="mt-2 space-y-1.5">
+                                    <button v-for="promo in availablePromos" :key="promo.id" type="button"
+                                        @click="form.promo_id = promo.id"
+                                        class="flex w-full items-center justify-between gap-2 rounded-lg border border-gray-200 dark:border-gray-800 px-3 py-2 text-left text-xs hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors">
+                                        <span class="truncate font-medium text-gray-900 dark:text-white">{{ promo.title }}</span>
+                                        <span class="shrink-0 text-gray-500 dark:text-gray-400">
+                                            {{ promo.type === 'percent' ? `${promo.value}%` : formatRupiah(promo.value) }}
+                                        </span>
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -709,9 +737,9 @@ const inputClass = (hasError) => [
                             <span>Diskon Item</span>
                             <span class="font-medium text-red-500">- {{ formatRupiah(lineDiscounts) }}</span>
                         </div>
-                        <div v-if="headerDiscount" class="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-                            <span>Diskon{{ form.discount_type === 'percent' ? ` (${form.discount_value}%)` : '' }}</span>
-                            <span class="font-medium text-red-500">- {{ formatRupiah(headerDiscount) }}</span>
+                        <div v-if="promoDiscount" class="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                            <span class="truncate mr-2">{{ selectedPromo?.title || 'Promo' }}</span>
+                            <span class="font-medium text-red-500 shrink-0">- {{ formatRupiah(promoDiscount) }}</span>
                         </div>
 
                         <div class="flex justify-between pt-2 border-t border-gray-100 dark:border-gray-800">
@@ -1047,31 +1075,39 @@ const inputClass = (hasError) => [
                         </div>
                     </div>
 
-                    <!-- Diskon transaksi -->
-                    <div class="border-t border-gray-100 dark:border-gray-800 pt-3 space-y-2">
-                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400">Diskon Transaksi</label>
-                        <div class="flex items-center gap-2">
-                            <div class="inline-flex rounded-lg border border-gray-300 dark:border-gray-700 p-0.5 bg-gray-50 dark:bg-gray-800/60">
-                                <button
-                                    v-for="opt in [{ key: 'nominal', label: 'Rp' }, { key: 'percent', label: '%' }]"
-                                    :key="opt.key"
-                                    type="button"
-                                    @click="form.discount_type = opt.key"
-                                    :class="[
-                                        'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-                                        form.discount_type === opt.key
-                                            ? 'bg-white dark:bg-gray-900 text-primary-700 dark:text-primary-400 shadow-sm'
-                                            : 'text-gray-500 dark:text-gray-400',
-                                    ]"
-                                >
-                                    {{ opt.label }}
+                    <!-- Promo aktif (potongan per unit, dihitung server saat simpan) -->
+                    <div v-if="availablePromos.length" class="border-t border-gray-100 dark:border-gray-800 pt-3 space-y-2">
+                        <template v-if="selectedPromo">
+                            <div class="flex items-center gap-2 rounded-lg border border-primary-500/50 dark:border-primary-500/40 bg-primary-50 dark:bg-primary-900/20 px-2.5 py-2">
+                                <BadgePercent class="h-4 w-4 shrink-0 text-primary-600 dark:text-primary-400" />
+                                <div class="min-w-0 flex-1">
+                                    <p class="truncate text-xs font-medium text-primary-800 dark:text-primary-300">{{ selectedPromo.title }}</p>
+                                    <p class="text-xs text-primary-700 dark:text-primary-300">Potongan {{ formatRupiah(promoDiscount) }}</p>
+                                </div>
+                                <button type="button" @click="form.promo_id = ''"
+                                    class="shrink-0 rounded-lg p-1 text-primary-700 dark:text-primary-300"
+                                    aria-label="Batalkan promo">
+                                    <X class="h-3.5 w-3.5" />
                                 </button>
                             </div>
-                            <div class="flex-1">
-                                <AppCurrencyInput v-if="form.discount_type === 'nominal'" v-model="form.discount_value" placeholder="0" />
-                                <AppNumberInput v-else v-model="form.discount_value" :min="0" :max="100" placeholder="0" />
+                        </template>
+                        <template v-else>
+                            <button type="button" @click="form.promo_id = availablePromos[0].id"
+                                class="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-primary-400 dark:border-primary-600 px-3 py-2 text-xs font-medium text-primary-700 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors">
+                                <BadgePercent class="h-3.5 w-3.5" />
+                                Pakai Promo ({{ availablePromos.length }} aktif)
+                            </button>
+                            <div v-if="availablePromos.length > 1" class="space-y-1">
+                                <button v-for="promo in availablePromos" :key="promo.id" type="button"
+                                    @click="form.promo_id = promo.id"
+                                    class="flex w-full items-center justify-between gap-2 rounded-lg border border-gray-200 dark:border-gray-800 px-2.5 py-1.5 text-left text-xs hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors">
+                                    <span class="truncate font-medium text-gray-900 dark:text-white">{{ promo.title }}</span>
+                                    <span class="shrink-0 text-gray-500 dark:text-gray-400">
+                                        {{ promo.type === 'percent' ? `${promo.value}%` : formatRupiah(promo.value) }}
+                                    </span>
+                                </button>
                             </div>
-                        </div>
+                        </template>
                     </div>
 
                     <!-- Total -->
@@ -1084,9 +1120,9 @@ const inputClass = (hasError) => [
                             <span>Diskon Item</span>
                             <span class="tabular-nums text-red-500">- {{ formatRupiah(lineDiscounts) }}</span>
                         </div>
-                        <div v-if="headerDiscount" class="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-                            <span>Diskon{{ form.discount_type === 'percent' ? ` (${form.discount_value}%)` : '' }}</span>
-                            <span class="tabular-nums text-red-500">- {{ formatRupiah(headerDiscount) }}</span>
+                        <div v-if="promoDiscount" class="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                            <span class="truncate mr-2">{{ selectedPromo?.title || 'Promo' }}</span>
+                            <span class="shrink-0 tabular-nums text-red-500">- {{ formatRupiah(promoDiscount) }}</span>
                         </div>
                         <div class="flex justify-between pt-1.5">
                             <span class="font-semibold text-gray-900 dark:text-white">Total</span>

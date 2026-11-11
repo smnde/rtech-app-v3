@@ -7,6 +7,7 @@ use App\Http\Resources\CartResource;
 use App\Http\Resources\PurchasesResource;
 use App\Models\Brand;
 use App\Models\Cart;
+use App\Models\CashFlow;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Purchase;
@@ -90,6 +91,7 @@ class PurchasesController extends Controller
         $purchase->load(['user:id,name', 'supplier:id,name,phone', 'customer:id,name,phone', 'details.item']);
 
         return inertia('Transaksi/PembelianDetail', [
+            'cashiers' => User::query()->orderBy('name')->get(['id', 'name']),
             'purchase' => [
                 'id' => $purchase->id,
                 'invoice' => $purchase->invoice,
@@ -276,6 +278,50 @@ class PurchasesController extends Controller
         }
 
         return redirect()->route('transaksi.pembelian.show', $purchase)->with('success', 'Pembelian ditandai selesai.');
+    }
+
+    public function markPaid(Purchase $purchase, Request $request): RedirectResponse
+    {
+        if ($purchase->payment_status !== 'hutang') {
+            return back()->with('error', 'Status pembelian tidak perlu dilunasi.');
+        }
+
+        $data = $request->validate([
+            'user_id' => ['nullable', 'integer', 'exists:users,id'],
+        ]);
+
+        $cashier = filled($data['user_id'] ?? null)
+            ? User::query()->findOrFail($data['user_id'])
+            : $request->user();
+        // Sisa yang belum tercatat di kas.
+        $alreadyRecorded = (float) CashFlow::query()
+            ->where('reference', $purchase->invoice)
+            ->where('type', 'out')
+            ->sum('amount');
+        $outstanding = max(0, (float) $purchase->total - $alreadyRecorded);
+
+        DB::transaction(function () use ($purchase, $cashier, $outstanding) {
+            // Kasir pelunasan menggantikan kasir saat pembelian dibuat.
+            $purchase->update([
+                'payment_status' => 'lunas',
+                'paid_at' => now(),
+                'user_id' => $cashier->id,
+            ]);
+
+            if ($outstanding > 0) {
+                CashFlowRecorder::record(
+                    'out',
+                    CashFlowRecorder::PURCHASE_CATEGORY,
+                    "Pelunasan {$purchase->invoice}",
+                    $outstanding,
+                    $purchase,
+                    $cashier,
+                    $purchase->invoice,
+                );
+            }
+        });
+
+        return redirect()->route('transaksi.pembelian.show', $purchase)->with('success', 'Pembelian sudah dilunasi.');
     }
 
     public function destroy(Purchase $purchase): RedirectResponse
