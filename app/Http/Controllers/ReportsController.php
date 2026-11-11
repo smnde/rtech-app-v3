@@ -18,6 +18,9 @@ class ReportsController extends Controller
         [$from, $to] = $this->period($request);
 
         $sales = Sale::query()
+            // Keep & hutang belum masuk laporan: uangnya saja yang sudah tercatat di kas.
+            // Unitnya baru muncul di laporan setelah dilunasi (payment_status jadi lunas).
+            ->where('payment_status', 'lunas')
             ->with(['details' => fn ($q) => $q->where('qty', '>', 0)->where('subtotal', '>', 0)->with('item:id,name')])
             ->where('created_at', '>=', "{$from} 00:00:00")
             ->where('created_at', '<=', "{$to} 23:59:59")
