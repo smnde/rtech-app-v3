@@ -51,7 +51,9 @@ class ReparationsController extends Controller
             ->withQueryString();
 
         return inertia('Servis/Index', [
-            'reparations' => ReparationsResource::collection($reparations),
+            // through() mempertahankan metadata paginasi (links/total/from-to),
+            // beda dengan Resource::collection() yang membungkusnya.
+            'reparations' => $reparations->through(fn ($item) => (new ReparationsResource($item))->resolve()),
             'customers' => Customer::query()->orderBy('name')->get(['id', 'name', 'phone']),
             'statuses' => Reparation::STATUSES,
             'users' => User::query()->orderBy('name')->get(['id', 'name']),
