@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\FiltersStock;
 use App\Models\Concerns\GeneratesSku;
+use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
@@ -34,7 +35,7 @@ use Illuminate\Support\Str;
 
 class Laptop extends Model
 {
-    use FiltersStock, GeneratesSku;
+    use FiltersStock, GeneratesSku, LogsActivity;
 
     protected function searchableColumns(): array
     {

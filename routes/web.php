@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccesoriesController;
+use App\Http\Controllers\ActivityLogsController;
 use App\Http\Controllers\BrandsController;
 use App\Http\Controllers\CartsController;
 use App\Http\Controllers\CashFlowController;
@@ -110,6 +111,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/set-permission', [RolePermissionsController::class, 'index'])->name('set-permission.index');
         Route::put('/set-permission/{role}', [RolePermissionsController::class, 'update'])->name('set-permission.update');
     });
+
+    Route::get('/activity-log', [ActivityLogsController::class, 'index'])->middleware('permission:show activity_log')->name('activity-log.index');
 
     Route::get('/price-tag', [PriceTagController::class, 'index'])->middleware('permission:show laptop')->name('price-tag');
 

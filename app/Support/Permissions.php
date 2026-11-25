@@ -25,6 +25,7 @@ final class Permissions
         'stock_movement',
         'cashflow',
         'promo',
+        'activity_log',
     ];
 
     public const ACTIONS = ['show', 'add', 'edit', 'delete'];

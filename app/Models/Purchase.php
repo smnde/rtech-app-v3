@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\HasInvoiceNumber;
+use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 
@@ -20,7 +21,7 @@ use Illuminate\Database\Eloquent\Model;
 ])]
 class Purchase extends Model
 {
-    use HasInvoiceNumber;
+    use HasInvoiceNumber, LogsActivity;
 
     protected function invoicePrefix(): string
     {

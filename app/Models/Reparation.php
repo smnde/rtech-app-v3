@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\HasInvoiceNumber;
+use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
@@ -28,7 +29,7 @@ use Illuminate\Support\Collection;
 ])]
 class Reparation extends Model
 {
-    use HasInvoiceNumber;
+    use HasInvoiceNumber, LogsActivity;
 
     protected function invoicePrefix(): string
     {

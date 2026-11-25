@@ -22,6 +22,7 @@ import {
     Truck,
     Wallet,
     BadgePercent,
+    ScrollText,
 } from 'lucide-vue-next';
 
 /**
@@ -232,6 +233,13 @@ export const menuItems = [
                 permission: 'show report',
             },
         ],
+    },
+    {
+        key: 'activity-log',
+        label: 'Log Aktivitas',
+        icon: ScrollText,
+        route: 'activity-log.index',
+        permission: 'show activity_log',
     },
 ];
 
