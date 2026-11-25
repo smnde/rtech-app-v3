@@ -113,6 +113,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     Route::get('/activity-log', [ActivityLogsController::class, 'index'])->middleware('permission:show activity_log')->name('activity-log.index');
+    Route::delete('/activity-log', [ActivityLogsController::class, 'destroyMonth'])->middleware(['role:SYSADMIN', 'sysadmin.password'])->name('activity-log.destroy-month');
 
     Route::get('/price-tag', [PriceTagController::class, 'index'])->middleware('permission:show laptop')->name('price-tag');
 

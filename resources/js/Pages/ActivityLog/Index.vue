@@ -1,9 +1,10 @@
 <script setup>
-import { computed, reactive, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { Head, router, usePage } from '@inertiajs/vue3';
-import { Search, ScrollText } from 'lucide-vue-next';
+import { Search, ScrollText, Trash2 } from 'lucide-vue-next';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import AppPageHeader from '@/Components/UI/AppPageHeader.vue';
+import AppButton from '@/Components/UI/AppButton.vue';
 import AppPagination from '@/Components/UI/AppPagination.vue';
 import AppBadge from '@/Components/UI/AppBadge.vue';
 import AppTable from '@/Components/UI/AppTable.vue';
@@ -11,18 +12,27 @@ import AppCard from '@/Components/UI/AppCard.vue';
 import AppDropdown from '@/Components/UI/AppDropdown.vue';
 import AppDateRangePicker from '@/Components/UI/AppDateRangePicker.vue';
 import AppFilterModal from '@/Components/UI/AppFilterModal.vue';
+import AppModal from '@/Components/UI/AppModal.vue';
 import { useToast } from '@/composables/useToast';
+import { usePermission } from '@/composables/usePermission';
+import { useConfirm } from '@/composables/useConfirm';
 
 const props = defineProps({
-    logs:    { type: Object, required: true },
-    filters: { type: Object, default: () => ({}) },
-    modules: { type: Array, default: () => [] },
-    actions: { type: Array, default: () => [] },
-    users:   { type: Array, default: () => [] },
+    logs:              { type: Object, required: true },
+    filters:           { type: Object, default: () => ({}) },
+    modules:           { type: Array, default: () => [] },
+    actions:           { type: Array, default: () => [] },
+    users:             { type: Array, default: () => [] },
+    purgeableMonths:   { type: Array, default: () => [] },
+    currentMonthLabel: { type: String, default: '' },
 });
 
 const page  = usePage();
 const toast = useToast();
+const { hasRole } = usePermission();
+const confirm = useConfirm();
+
+const isSysadmin = computed(() => hasRole('SYSADMIN'));
 
 watch(
     () => page.props.flash,
@@ -129,6 +139,55 @@ watch(
         }, 300);
     },
 );
+
+// ─── Hapus log per bulan (SYSADMIN) ───────────────────────────
+const purgeModal = ref(false);
+const purgeMonth = ref('');
+const purging = ref(false);
+
+const purgeOptions = computed(() =>
+    props.purgeableMonths.map((month) => ({
+        id: month.value,
+        label: `${month.label} (${month.count} entri)`,
+    })),
+);
+
+const selectedPurgeMonth = computed(() =>
+    props.purgeableMonths.find((month) => month.value === purgeMonth.value),
+);
+
+const openPurge = () => {
+    purgeMonth.value = props.purgeableMonths[0]?.value ?? '';
+    purgeModal.value = true;
+};
+
+const closePurge = () => {
+    purgeModal.value = false;
+};
+
+const confirmPurge = async () => {
+    if (!selectedPurgeMonth.value) return;
+
+    const month = selectedPurgeMonth.value;
+    const ok = await confirm.confirm({
+        title: `Hapus log ${month.label}?`,
+        message: `${month.count} entri log ${month.label} akan dihapus permanen dan tidak bisa dikembalikan. Log ${props.currentMonthLabel} tetap aman.`,
+        confirmLabel: 'Hapus Log',
+        variant: 'danger',
+        requirePassword: true,
+    });
+
+    if (!ok) return;
+
+    purging.value = true;
+    router.delete(route('activity-log.destroy-month'), {
+        data: { month: month.value, password: confirm.state.password },
+        preserveScroll: true,
+        onSuccess: () => closePurge(),
+        onError: (errors) => toast.error(Object.values(errors)[0] ?? 'Gagal menghapus log.'),
+        onFinish: () => { purging.value = false; },
+    });
+};
 </script>
 
 <template>
@@ -138,6 +197,16 @@ watch(
         <div class="flex h-full flex-col">
             <AppPageHeader title="Log Aktivitas" description="Riwayat perubahan data dan aktivitas login user." class="shrink-0">
                 <template #actions>
+                    <AppButton
+                        v-if="isSysadmin && purgeableMonths.length > 0"
+                        variant="danger"
+                        size="md"
+                        class="hidden sm:flex"
+                        @click="openPurge"
+                    >
+                        <Trash2 class="h-4 w-4" />
+                        Hapus Log
+                    </AppButton>
                     <AppFilterModal :active="hasActiveFilter" @reset="resetFilter">
                         <div>
                             <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Periode</label>
@@ -251,6 +320,46 @@ watch(
             <div v-if="logs.total > 0" class="mt-4 sm:hidden">
                 <AppPagination :paginator="logs" />
             </div>
+
+            <AppButton
+                v-if="isSysadmin && purgeableMonths.length > 0"
+                variant="danger"
+                size="md"
+                class="mt-4 w-full sm:hidden"
+                @click="openPurge"
+            >
+                <Trash2 class="h-4 w-4" />
+                Hapus Log
+            </AppButton>
         </div>
+
+        <AppModal :show="purgeModal" title="Hapus Log per Bulan" size="sm" @close="closePurge">
+            <div class="space-y-4">
+                <div>
+                    <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Bulan</label>
+                    <AppDropdown v-model="purgeMonth" :options="purgeOptions" placeholder="Pilih bulan" />
+                </div>
+                <p v-if="selectedPurgeMonth" class="text-xs text-gray-500 dark:text-gray-400">
+                    {{ selectedPurgeMonth.count }} entri log {{ selectedPurgeMonth.label }} akan dihapus permanen.
+                    Log {{ currentMonthLabel }} belum bisa dihapus — tunggu sampai bulan berikutnya.
+                </p>
+                <p v-else class="text-xs text-gray-500 dark:text-gray-400">
+                    Belum ada bulan yang bisa dihapus. Log baru bisa dihapus setelah bulannya berakhir.
+                </p>
+            </div>
+
+            <template #footer>
+                <AppButton variant="secondary" size="sm" @click="closePurge">Batal</AppButton>
+                <AppButton
+                    variant="danger"
+                    size="sm"
+                    :disabled="!selectedPurgeMonth"
+                    :loading="purging"
+                    @click="confirmPurge"
+                >
+                    Hapus Log
+                </AppButton>
+            </template>
+        </AppModal>
     </AppLayout>
 </template>

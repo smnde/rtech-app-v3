@@ -186,3 +186,103 @@ test('user without the activity log permission cannot open the page', function (
 
     $this->actingAs($tech)->get('/activity-log')->assertForbidden();
 });
+
+test('sysadmin can delete logs of a finished month', function () {
+    $sysadmin = User::factory()->withRole('SYSADMIN')->create();
+    $this->travelTo('2026-12-05 10:00:00');
+    ActivityLog::query()->delete();
+
+    ActivityLog::factory()->forUser($sysadmin)->count(2)->create(['created_at' => '2026-11-10 08:00:00']);
+    ActivityLog::factory()->forUser($sysadmin)->count(3)->create(['created_at' => '2026-12-05 09:00:00']);
+
+    $this->actingAs($sysadmin)
+        ->delete('/activity-log', ['month' => '2026-11', 'password' => 'password'])
+        ->assertRedirect()
+        ->assertSessionHas('success', 'Log November 2026 dihapus (2 entri).');
+
+    expect(ActivityLog::query()->where('created_at', '<', '2026-12-01')->count())->toBe(0)
+        ->and(ActivityLog::query()->where('created_at', '>=', '2026-12-01')->count())->toBe(3);
+});
+
+test('logs of the current month cannot be deleted', function () {
+    $sysadmin = User::factory()->withRole('SYSADMIN')->create();
+    $this->travelTo('2026-11-25 10:00:00');
+    ActivityLog::query()->delete();
+
+    ActivityLog::factory()->forUser($sysadmin)->create(['created_at' => '2026-11-10 08:00:00']);
+
+    $this->actingAs($sysadmin)
+        ->delete('/activity-log', ['month' => '2026-11', 'password' => 'password'])
+        ->assertSessionHasErrors('month');
+
+    expect(ActivityLog::count())->toBe(1);
+});
+
+test('a month becomes deletable on the first day of the next month', function () {
+    $sysadmin = User::factory()->withRole('SYSADMIN')->create();
+    $this->travelTo('2026-11-01 00:01:00');
+    ActivityLog::query()->delete();
+    ActivityLog::factory()->forUser($sysadmin)->create(['created_at' => '2026-10-31 23:59:00']);
+
+    $this->actingAs($sysadmin)
+        ->delete('/activity-log', ['month' => '2026-10', 'password' => 'password'])
+        ->assertSessionHas('success');
+
+    expect(ActivityLog::count())->toBe(0);
+});
+
+test('an invalid month format is rejected', function () {
+    $sysadmin = User::factory()->withRole('SYSADMIN')->create();
+
+    $this->actingAs($sysadmin)
+        ->delete('/activity-log', ['month' => '2026-13', 'password' => 'password'])
+        ->assertSessionHasErrors('month');
+});
+
+test('deleting logs requires the sysadmin password', function () {
+    $sysadmin = User::factory()->withRole('SYSADMIN')->create();
+    $this->travelTo('2026-12-05 10:00:00');
+    ActivityLog::query()->delete();
+    ActivityLog::factory()->forUser($sysadmin)->create(['created_at' => '2026-11-10 08:00:00']);
+
+    $this->actingAs($sysadmin)
+        ->delete('/activity-log', ['month' => '2026-11', 'password' => 'salah'])
+        ->assertSessionHasErrors('password');
+
+    expect(ActivityLog::count())->toBe(1);
+});
+
+test('roles that are not sysadmin cannot delete logs', function (string $role) {
+    $user = User::factory()->withRole($role)->create();
+    $this->travelTo('2026-12-05 10:00:00');
+    ActivityLog::query()->delete();
+    ActivityLog::factory()->forUser($user)->create(['created_at' => '2026-11-10 08:00:00']);
+
+    $this->actingAs($user)
+        ->delete('/activity-log', ['month' => '2026-11', 'password' => 'password'])
+        ->assertForbidden();
+
+    expect(ActivityLog::count())->toBe(1);
+})->with(['OWNER', 'ADMIN', 'TECH']);
+
+test('the page lists months that are still deletable with their entry counts', function () {
+    $sysadmin = User::factory()->withRole('SYSADMIN')->create();
+    $this->travelTo('2026-12-05 10:00:00');
+    ActivityLog::query()->delete();
+
+    ActivityLog::factory()->forUser($sysadmin)->count(2)->create(['created_at' => '2026-10-15 08:00:00']);
+    ActivityLog::factory()->forUser($sysadmin)->create(['created_at' => '2026-11-15 08:00:00']);
+    ActivityLog::factory()->forUser($sysadmin)->create(['created_at' => '2026-12-01 08:00:00']);
+
+    $this->actingAs($sysadmin)
+        ->get('/activity-log')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('purgeableMonths.0.value', '2026-11')
+            ->where('purgeableMonths.0.count', 1)
+            ->where('purgeableMonths.1.value', '2026-10')
+            ->where('purgeableMonths.1.count', 2)
+            ->has('purgeableMonths', 2)
+            ->where('currentMonthLabel', 'Desember 2026')
+        );
+});
